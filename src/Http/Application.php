@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Facet\Http;
 
 use Facet\Asset\AssetBundle;
-use Facet\Asset\AssetResolver;
+use Facet\Asset\AssetManager;
 use Facet\Config\Config;
 use Facet\Content\Corpus;
 use Facet\Content\CorpusLoader;
@@ -45,7 +45,7 @@ final class Application
 
     private SkinSelectionPolicy $policy;
 
-    private AssetResolver $assets;
+    private AssetManager $assets;
 
     private SkinRenderer $renderer;
 
@@ -60,7 +60,7 @@ final class Application
         Config $config,
         SkinRegistry $registry,
         SkinSelectionPolicy $policy,
-        AssetResolver $assets,
+        AssetManager $assets,
         SkinRenderer $renderer,
         Router $router,
         ErrorPresenter $errors
@@ -84,14 +84,15 @@ final class Application
     ): self {
         $basePath = rtrim(str_replace('\\', '/', $basePath), '/');
         $config ??= Config::fromEnvironment($basePath);
+        $registry ??= SkinRegistry::default();
         $renderer = SkinRenderer::forBasePath($basePath);
 
         return new self(
             $basePath,
             $config,
-            $registry ?? SkinRegistry::default(),
+            $registry,
             $policy ?? new DefaultSkinSelectionPolicy(),
-            AssetResolver::fromManifestFile(self::manifestPath($basePath)),
+            AssetManager::fromConfig($config, self::manifestPath($basePath)),
             $renderer,
             $router ?? Router::fromCatalog(),
             new ErrorPresenter($renderer, $config->isDebug())
@@ -141,6 +142,7 @@ final class Application
     public function handle(Request $request): Response
     {
         $skin = null;
+        $assets = AssetBundle::empty();
 
         try {
             $selection = $this->selectSkin($request->query(), $request->cookies());
@@ -151,6 +153,8 @@ final class Application
                 // rather than served, so links and caches agree.
                 return Response::redirect($request->canonicalTarget(), Response::STATUS_MOVED_PERMANENTLY);
             }
+
+            $assets = $this->assets->resolve($skin);
 
             $match = $this->router->match($request);
 
@@ -165,13 +169,13 @@ final class Application
                 );
             }
 
-            return $this->dispatch($match->route(), $match->parameters(), $request, $selection);
+            return $this->dispatch($match->route(), $match->parameters(), $request, $selection, $assets);
         } catch (HttpException $error) {
             return $this->errors->present(
                 $error,
                 $error->statusCode(),
                 $skin,
-                $this->sharedData($request, $skin),
+                $this->sharedData($request, $skin, null, $assets),
                 $request
             );
         } catch (Throwable $error) {
@@ -179,7 +183,7 @@ final class Application
                 $error,
                 Response::STATUS_INTERNAL_SERVER_ERROR,
                 $skin,
-                $this->sharedData($request, $skin),
+                $this->sharedData($request, $skin, null, $assets),
                 $request
             );
         }
@@ -196,9 +200,10 @@ final class Application
         RouteDefinition $route,
         array $parameters,
         Request $request,
-        SkinSelection $selection
+        SkinSelection $selection,
+        AssetBundle $assets
     ): Response {
-        $shared = $this->sharedData($request, $selection->skin(), $selection);
+        $shared = $this->sharedData($request, $selection->skin(), $selection, $assets);
 
         return match ($route->name()) {
             RouteCatalog::HOME => $this->page($route, $selection, $shared + [
@@ -284,14 +289,19 @@ final class Application
      *
      * @return array<string, mixed>
      */
-    private function sharedData(Request $request, ?SkinDefinition $skin, ?SkinSelection $selection = null): array
+    private function sharedData(
+        Request $request,
+        ?SkinDefinition $skin,
+        ?SkinSelection $selection = null,
+        ?AssetBundle $assets = null
+    ): array
     {
         $data = [
             'appName' => $this->config->get('APP_NAME', 'Facet') ?? 'Facet',
             'locale' => $this->config->get('APP_LOCALE', 'en') ?? 'en',
             'environment' => $this->config->environment(),
             'path' => $request->path(),
-            'assets' => $skin === null ? AssetBundle::empty() : $this->assets->resolve($skin),
+            'assets' => $assets ?? AssetBundle::empty(),
         ];
 
         if ($skin !== null) {

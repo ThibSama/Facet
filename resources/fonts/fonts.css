@@ -1,0 +1,8 @@
+/*
+ * Local font entrypoint.
+ *
+ * No brand typeface is selected or licensed yet, so this file intentionally
+ * declares no @font-face. Add only project-authorized WOFF2 files beside it;
+ * Vite will fingerprint url('./name.woff2') references imported from here.
+ * Every future @font-face must declare an explicit font-display policy.
+ */

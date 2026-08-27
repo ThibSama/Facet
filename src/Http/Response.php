@@ -67,7 +67,10 @@ final class Response
     {
         return new self(
             self::assertStatus($status),
-            self::normaliseHeaders($headers + ['Content-Type' => 'text/html; charset=utf-8']),
+            self::normaliseHeaders($headers + [
+                'Content-Type' => 'text/html; charset=utf-8',
+                'Cache-Control' => 'no-cache',
+            ]),
             $html
         );
     }

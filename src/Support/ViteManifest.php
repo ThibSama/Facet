@@ -44,8 +44,31 @@ final class ViteManifest
             throw new RuntimeException(sprintf('Vite manifest at "%s" is not valid JSON.', $path));
         }
 
-        /** @var array<string, array<string, mixed>> $decoded */
-        return new self($decoded, $basePath);
+        $entries = [];
+
+        foreach ($decoded as $entry => $metadata) {
+            if (!is_string($entry) || !is_array($metadata)) {
+                throw new RuntimeException(sprintf('Vite manifest at "%s" has an invalid entry.', $path));
+            }
+
+            $file = $metadata['file'] ?? null;
+            $css = $metadata['css'] ?? [];
+
+            if (!is_string($file) || $file === '' || !is_array($css)) {
+                throw new RuntimeException(sprintf('Vite manifest entry "%s" is invalid.', $entry));
+            }
+
+            foreach ($css as $stylesheet) {
+                if (!is_string($stylesheet) || $stylesheet === '') {
+                    throw new RuntimeException(sprintf('Vite manifest entry "%s" has invalid CSS.', $entry));
+                }
+            }
+
+            /** @var array<string, mixed> $metadata */
+            $entries[$entry] = $metadata;
+        }
+
+        return new self($entries, $basePath);
     }
 
     public function has(string $entry): bool
@@ -54,6 +77,12 @@ final class ViteManifest
     }
 
     public function script(string $entry): string
+    {
+        return $this->asset($entry);
+    }
+
+    /** Resolves any manifest-addressable local asset to its fingerprinted URL. */
+    public function asset(string $entry): string
     {
         $file = $this->entries[$entry]['file'] ?? null;
 

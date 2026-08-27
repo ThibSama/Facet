@@ -21,6 +21,7 @@ final class ResponseTest extends TestCase
         self::assertSame(200, $response->status());
         self::assertSame('OK', $response->reasonPhrase());
         self::assertSame('text/html; charset=utf-8', $response->header('Content-Type'));
+        self::assertSame('no-cache', $response->header('Cache-Control'));
         self::assertSame('<p>hi</p>', $response->body());
         self::assertTrue($response->isSuccessful());
         self::assertFalse($response->isError());
@@ -58,7 +59,7 @@ final class ResponseTest extends TestCase
 
         self::assertSame('text/html; charset=utf-8', $original->header('Content-Type'));
         self::assertSame('text/plain; charset=utf-8', $updated->header('Content-Type'));
-        self::assertCount(1, $updated->headers());
+        self::assertCount(2, $updated->headers());
     }
 
     public function testARedirectLocationCannotInjectAHeader(): void

@@ -63,6 +63,12 @@ the application throws `MissingConfigurationException` if it is unset or empty.
 | `npm run lint`      | ESLint over TypeScript/JavaScript                    |
 | `npm run typecheck` | TypeScript, no emit                                  |
 
+For HMR, set `VITE_DEV_SERVER_ORIGIN=http://localhost:5173`, run `npm run dev`,
+and run PHP separately. PHP only constructs the development URLs; it does not
+probe or require the Vite server during application boot. With no origin set,
+local development uses an existing manifest when present and otherwise keeps
+server-rendered HTML available without enhancement.
+
 ### `composer quality`
 
 The single aggregate gate. It runs, in order and **stopping at the first
@@ -95,7 +101,9 @@ Then open <http://localhost:8000>.
 
 In production, point the web server's document root at `public/` and serve
 `public/index.php`. Deploy `vendor/` (via `composer install --no-dev`) and the
-built `public/build/` directory; no Node runtime is involved.
+built `public/build/` directory; no Node runtime is involved. Production boot
+requires a valid manifest, and a selected skin with a missing manifest entry
+fails the request explicitly instead of rendering an assetless page.
 
 ---
 
@@ -106,6 +114,8 @@ config/           Resolved application settings
 content/          Canonical content (versioned JSON, no database)
 public/           Document root — index.php and built assets (public/build/)
 resources/css/    Shared Tailwind entry stylesheet
+resources/fonts/  Licensed local WOFF2 pipeline (no font selected yet)
+resources/images/ Manifest-addressable local responsive image sources
 resources/js/     Shared TypeScript entrypoint (progressive enhancement only)
 resources/skins/  One directory per skin — views + isolated entrypoints
 src/              PSR-4 application code (Facet\)
@@ -214,9 +224,11 @@ Vite builds one entrypoint per skin alongside the shared entrypoint:
 | `resources/skins/evolving-interface/skin.ts`     | selected skin    |
 | `resources/skins/fixture-unselected/skin.ts`     | test fixture     |
 
-`Facet\Asset\AssetResolver` is the only place a manifest key becomes a URL: it
-returns shared entrypoints plus the selected skin's, and nothing else. A
-rendered document can only reference what is in that bundle.
+`Facet\Asset\AssetManager` selects the delivery mode once. Production resolves
+fingerprinted URLs from a required Vite manifest; development can emit the HMR
+client plus source entrypoints from `VITE_DEV_SERVER_ORIGIN`, without a network
+probe. `AssetResolver` returns shared entrypoints plus the selected skin's, and
+nothing else. A rendered document can only reference what is in that bundle.
 
 `fixture-unselected` is built on purpose and is **never registered as a skin**.
 A build artefact that exists and is still absent from every rendered document is
@@ -255,6 +267,24 @@ APP_ENV=local APP_KEY=dev php -d variables_order=EGPCS public/index.php \
 
 Every recognised key is documented in `.env.example`, which contains
 placeholders only.
+
+### Local media and caching
+
+Fonts are project-local WOFF2 files imported through
+`resources/fonts/fonts.css`. No final typeface or binary is currently selected,
+so the repository intentionally contains no `@font-face` or preload. The
+provenance and `font-display` requirements are recorded in
+`resources/fonts/README.md`; remote runtime font services are prohibited.
+
+Local fallback/AVIF/WebP image variants live under `resources/images/` and must
+be declared as Vite inputs when PHP needs a direct URL. `ResponsiveImage`
+resolves those manifest keys with intrinsic dimensions and accessible metadata,
+without requiring final portfolio images today.
+
+`AssetCachePolicy` grants one-year immutable caching only to hashed files under
+`/build/assets/`. HTML responses and non-fingerprinted paths use `no-cache`.
+Static-file headers remain the production web server's responsibility; this
+repository deliberately contains no deployment-specific server configuration.
 
 ---
 

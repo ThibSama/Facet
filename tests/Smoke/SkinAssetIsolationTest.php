@@ -130,9 +130,9 @@ final class SkinAssetIsolationTest extends TestCase
         self::assertFalse($bundle->references(self::manifest()->script(self::SELECTED_ENTRY)));
     }
 
-    public function testResolverToleratesAMissingBuild(): void
+    public function testDevelopmentResolverToleratesAMissingBuild(): void
     {
-        $resolver = AssetResolver::fromManifestFile(self::root() . '/public/build/does-not-exist.json');
+        $resolver = AssetResolver::fromOptionalManifestFile(self::root() . '/public/build/does-not-exist.json');
         $bundle = $resolver->resolve(SkinRegistry::default()->defaultSkin());
 
         self::assertFalse($resolver->hasManifest());
@@ -176,6 +176,30 @@ final class SkinAssetIsolationTest extends TestCase
         self::assertStringContainsString('data-skin="evolving-interface"', $html);
         self::assertStringContainsString($manifest->script(self::SELECTED_ENTRY), $html);
         self::assertStringNotContainsString($manifest->script(self::UNSELECTED_ENTRY), $html);
+    }
+
+    public function testDevelopmentHtmlUsesHmrAndSourceEntrypointsWithoutAManifest(): void
+    {
+        $origin = 'http://127.0.0.1:65534';
+        $html = self::render(self::application('local', null, $origin));
+
+        self::assertStringContainsString($origin . '/@vite/client', $html);
+        self::assertStringContainsString($origin . '/' . self::SHARED_ENTRY, $html);
+        self::assertStringContainsString($origin . '/' . self::SELECTED_ENTRY, $html);
+        self::assertStringNotContainsString('/build/assets/', $html);
+        self::assertStringNotContainsString('fixture-unselected', $html);
+    }
+
+    public function testProductionHtmlNeverContainsHmrOrADevServerOrigin(): void
+    {
+        $manifest = self::manifest();
+        $origin = 'http://127.0.0.1:65534';
+        $html = self::render(self::application('production', null, $origin));
+
+        self::assertStringContainsString($manifest->script(self::SHARED_ENTRY), $html);
+        self::assertStringContainsString($manifest->script(self::SELECTED_ENTRY), $html);
+        self::assertStringNotContainsString('/@vite/client', $html);
+        self::assertStringNotContainsString($origin, $html);
     }
 
     public function testAProductionRequestForTheFixtureRendersTheDefaultSkin(): void
@@ -297,16 +321,26 @@ final class SkinAssetIsolationTest extends TestCase
         return $results;
     }
 
-    private static function application(string $environment, ?SkinRegistry $registry = null): Application
+    private static function application(
+        string $environment,
+        ?SkinRegistry $registry = null,
+        ?string $devServerOrigin = null
+    ): Application
     {
+        $values = [
+            'APP_NAME' => 'Facet',
+            'APP_ENV' => $environment,
+            'APP_KEY' => 'test-key',
+            'APP_LOCALE' => 'en',
+        ];
+
+        if ($devServerOrigin !== null) {
+            $values['VITE_DEV_SERVER_ORIGIN'] = $devServerOrigin;
+        }
+
         return Application::boot(
             self::root(),
-            Config::fromArray([
-                'APP_NAME' => 'Facet',
-                'APP_ENV' => $environment,
-                'APP_KEY' => 'test-key',
-                'APP_LOCALE' => 'en',
-            ]),
+            Config::fromArray($values),
             $registry
         );
     }

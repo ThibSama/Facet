@@ -27,6 +27,14 @@ const SKIN_ENTRYPOINTS = {
   'skin-fixture-unselected': 'resources/skins/fixture-unselected/skin.ts',
 };
 
+/**
+ * Project-local files that PHP must address directly belong here once their
+ * provenance and final metadata are known. Declaring them as inputs gives the
+ * Vite manifest a stable source key and a fingerprinted production file.
+ * Fonts referenced from resources/fonts/fonts.css do not need a second entry.
+ */
+const LOCAL_ASSET_ENTRYPOINTS = {};
+
 export default defineConfig({
   plugins: [tailwindcss()],
   base: '/build/',
@@ -40,6 +48,7 @@ export default defineConfig({
       input: {
         ...SHARED_ENTRYPOINTS,
         ...SKIN_ENTRYPOINTS,
+        ...LOCAL_ASSET_ENTRYPOINTS,
       },
     },
   },

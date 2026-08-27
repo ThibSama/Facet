@@ -18,3 +18,20 @@
   --facet-skin-surface: var(--facet-surface);
   --facet-skin-ink: var(--facet-ink);
 }
+
+/*
+ * The skin's media slot.
+ *
+ * Only the surface belongs here — the box's aspect ratio is written inline by
+ * the slot partial, so a card reserves its space even before this stylesheet
+ * arrives. The fill is a neutral raised surface rather than an illustration of
+ * an illustration: an entry with no image yet should read as quiet space, not
+ * as a missing asset.
+ */
+[data-skin='evolving-interface'] .facet-media {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--facet-border);
+  border-radius: 0.375rem;
+  background-color: var(--facet-surface-raised);
+}

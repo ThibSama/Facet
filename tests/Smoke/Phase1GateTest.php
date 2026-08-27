@@ -299,6 +299,65 @@ final class Phase1GateTest extends TestCase
     }
 
     /**
+     * Criterion 13: the built-in server's static passthrough answers a
+     * malformed path the same way the application would, and never off the
+     * filesystem.
+     *
+     * This runs here rather than only in a unit test because the failure it
+     * guards was invisible in process: `%00` decodes to a NUL, realpath()
+     * raises a ValueError for it, and the request died as a 500 with a fatal
+     * in the server log before routing was ever consulted.
+     */
+    public function testMalformedPathsAreRoutedNotResolvedOnDisk(): void
+    {
+        foreach (['/projects/kushim%00', '/%00', '/projects/kushim%00.js'] as $path) {
+            $response = self::get($path);
+
+            self::assertSame(404, $response['status'], $path . ' must be a deterministic 404');
+        }
+
+        // An encoded slash is a slug that does not exist, not a redirect back
+        // to itself.
+        $encodedSlash = self::get('/projects/a%2Fb');
+        self::assertSame(404, $encodedSlash['status']);
+        self::assertNull(self::headerValue('Location', ...$encodedSlash['headers']));
+
+        // A route the passthrough must keep its hands off entirely.
+        self::assertSame(200, self::get('/projects/kushim')['status']);
+
+        // A real build artefact still comes off disk, with a body.
+        $asset = self::manifest()->script('resources/js/app.ts');
+        $served = self::get($asset);
+        self::assertSame(200, $served['status'], $asset);
+        self::assertNotSame('', $served['body'], $asset);
+
+        // Nothing outside the document root is reachable, encoded or not, and
+        // the router script never serves itself as text.
+        foreach ([
+            '/../composer.json',
+            '/..%2fcomposer.json',
+            '/build/assets/../../../composer.json',
+            '/build/assets/..%2f..%2f..%2fcomposer.json',
+            '/index.php',
+        ] as $path) {
+            $response = self::get($path);
+
+            self::assertNotSame(200, $response['status'], $path . ' must not be served');
+            self::assertStringNotContainsString('facet/facet', $response['body'], $path . ' leaked composer.json');
+            self::assertStringNotContainsString('<?php', $response['body'], $path . ' leaked PHP source');
+        }
+
+        // Whatever the status, production still discloses nothing.
+        foreach (['/projects/kushim%00', '/projects/a%2Fb', '/..%2fcomposer.json', '/index.php'] as $path) {
+            $body = self::get($path)['body'];
+
+            foreach ([self::root(), 'phase1-gate-key', 'Fatal error', 'Warning:', 'Stack trace', 'ValueError'] as $forbidden) {
+                self::assertStringNotContainsString($forbidden, $body, $path . ' leaked ' . $forbidden);
+            }
+        }
+    }
+
+    /**
      * Criterion 15: with every script removed, the shell is still a complete,
      * navigable document.
      */

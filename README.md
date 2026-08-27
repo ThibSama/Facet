@@ -71,9 +71,13 @@ failure**:
 1. `vendor/` presence guard — fails immediately if dependencies are not installed
 2. `composer lint:php` — PHP syntax
 3. `composer analyse` — PHPStan level 8
-4. `composer test` — PHPUnit
-5. `npm run lint` — ESLint
-6. `npm run build` — TypeScript check + production Vite build
+4. `npm run lint` — ESLint
+5. `npm run build` — TypeScript check + production Vite build
+6. `composer test` — PHPUnit
+
+The build runs **before** the tests on purpose: the skin isolation tests assert
+against the real Vite manifest, so they must see freshly built artefacts rather
+than a stale or absent `public/build/`.
 
 Composer aborts a script array on the first non-zero exit code, so a failing or
 **missing** sub-tool always fails the gate. There is no `|| true`, no ignored
@@ -98,14 +102,15 @@ built `public/build/` directory; no Node runtime is involved.
 ## Layout
 
 ```
-config/         Resolved application settings
-content/        Canonical content (versioned JSON, no database)
-public/         Document root — index.php and built assets (public/build/)
-resources/css/  Tailwind entry stylesheet
-resources/js/   TypeScript entrypoint (progressive enhancement only)
-src/            PSR-4 application code (Facet\)
-tests/          PHPUnit — Unit/ and Smoke/
-tools/          Dependency-free maintenance scripts
+config/           Resolved application settings
+content/          Canonical content (versioned JSON, no database)
+public/           Document root — index.php and built assets (public/build/)
+resources/css/    Shared Tailwind entry stylesheet
+resources/js/     Shared TypeScript entrypoint (progressive enhancement only)
+resources/skins/  One directory per skin — views + isolated entrypoints
+src/              PSR-4 application code (Facet\)
+tests/            PHPUnit — Unit/, Content/ and Smoke/
+tools/            Dependency-free maintenance scripts
 ```
 
 ---
@@ -148,6 +153,96 @@ and renders before any final asset exists.
 
 ---
 
+## Skins
+
+Facet renders through a *skin*: a named bundle of server-side views and build
+assets. The boundary exists so a second skin is a new directory plus one
+registry entry — never a change to routing, content or the shared runtime.
+
+### The registry
+
+`Facet\Skin\SkinRegistry` is the canonical list. It holds exactly one real
+skin, `evolving-interface`, which is also the default. Each entry is a
+`SkinDefinition` declaring four things:
+
+| Declares          | Example                                          |
+| ----------------- | ------------------------------------------------ |
+| stable id         | `evolving-interface`                             |
+| view namespace    | `evolving-interface`                             |
+| view directory    | `resources/skins/evolving-interface/views`       |
+| asset entrypoints | `resources/skins/evolving-interface/skin.ts`     |
+| capabilities      | server-rendered views, progressive enhancement, isolated stylesheet |
+
+Unknown ids behave deterministically: `has()` is false, `find()` returns `null`,
+`get()` throws `UnknownSkinException`, and `findOrDefault()` — the single
+sanctioned degradation — always lands on the registered default.
+
+### Logical views
+
+Routes name a *logical view* (`page.home`), never a file. `SkinViewLocator`
+turns that identifier into a path owned by the selected skin, rejecting anything
+that is not dot-separated lowercase, so a caller-shaped identifier cannot escape
+the skin directory. No shared code outside `src/Skin` names a skin or a skin
+directory — `tests/Smoke/SkinBoundaryTest.php` enforces that.
+
+### Selection
+
+`SkinSelectionPolicy` decides which skin renders a request.
+`DefaultSkinSelectionPolicy` is the only implementation shipped, and its
+precedence is: explicit request → choice carried over from earlier navigation →
+registry default. It performs **no random selection**.
+
+- **Development** may preview a skin explicitly: `?skin=evolving-interface`.
+- **Production cannot.** `SkinSelectionContext::fromRequest()` never captures
+  the query parameter or the carried value outside development, so no policy —
+  present or future — can read a value production did not record.
+- An unknown id falls through to the default instead of failing the request.
+- A selection carries its source, so an explicit choice can be persisted and
+  survive navigation **without any route being rewritten** to carry it.
+
+A future strategy (a random skin, an A/B split, a stored preference) plugs into
+the same interface. `tests/Support/FakeRandomSkinSelectionPolicy.php` proves
+that seam without activating randomness in `src/`.
+
+### Isolated assets
+
+Vite builds one entrypoint per skin alongside the shared entrypoint:
+
+| Manifest key                                     | Layer            |
+| ------------------------------------------------ | ---------------- |
+| `resources/js/app.ts`                            | shared           |
+| `resources/skins/evolving-interface/skin.ts`     | selected skin    |
+| `resources/skins/fixture-unselected/skin.ts`     | test fixture     |
+
+`Facet\Asset\AssetResolver` is the only place a manifest key becomes a URL: it
+returns shared entrypoints plus the selected skin's, and nothing else. A
+rendered document can only reference what is in that bundle.
+
+`fixture-unselected` is built on purpose and is **never registered as a skin**.
+A build artefact that exists and is still absent from every rendered document is
+what makes the isolation claim testable rather than merely plausible — see
+`tests/Smoke/SkinAssetIsolationTest.php`.
+
+### Verifying the boundary by hand
+
+```bash
+composer install && npm ci
+composer quality
+
+# 1. The manifest separates shared assets from each skin's
+cat public/build/manifest.json
+
+# 2. A rendered document references shared + evolving-interface only
+APP_ENV=local APP_KEY=dev php -d variables_order=EGPCS public/index.php \
+  | grep -o '/build/assets/[^"]*'
+
+# 3. ... and never the unselected fixture
+APP_ENV=local APP_KEY=dev php -d variables_order=EGPCS public/index.php \
+  | grep -c 'fixture-unselected'   # expected: 0
+```
+
+---
+
 ## Configuration
 
 `Facet\Config\Config` reads real environment variables first and falls back to
@@ -165,6 +260,7 @@ placeholders only.
 
 ## Scope
 
-This is the foundation checkpoint. Routing, portfolio content, database, auth,
-SEO, visual design, the skin architecture, deployment and CI are deliberately
+This checkpoint delivers the foundation, the canonical content and routes, and
+the **skin boundary**. Database, auth, contact handling, SEO, the final visual
+design, a second skin, random skin selection, deployment and CI are deliberately
 out of scope and land in later packages.

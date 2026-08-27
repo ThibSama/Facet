@@ -1,0 +1,14 @@
+/*
+ * evolving-interface — skin surface.
+ *
+ * This file exists to prove the isolated-skin build boundary, not to carry the
+ * visual design: it declares the tokens the skin owns and nothing more. The
+ * shared base stylesheet (resources/css/app.css) is loaded alongside it and is
+ * where Tailwind is imported — a skin never re-imports the framework.
+ */
+
+[data-skin='evolving-interface'] {
+  --facet-skin-id: 'evolving-interface';
+  --facet-skin-surface: #ffffff;
+  --facet-skin-ink: #0f172a;
+}

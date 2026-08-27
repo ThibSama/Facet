@@ -1,0 +1,12 @@
+/*
+ * fixture-unselected — test fixture, never registered as a real skin.
+ *
+ * It is built on purpose so the manifest contains an entrypoint that no
+ * selectable skin owns. A test then asserts rendered output never references
+ * it: a build artefact that exists and is still not injected is the only
+ * convincing proof that entrypoint isolation works.
+ */
+
+[data-skin='fixture-unselected'] {
+  --facet-fixture-unselected: 1;
+}

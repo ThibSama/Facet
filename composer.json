@@ -37,13 +37,13 @@
             "@php -r \"exit((int) !is_dir('vendor'));\"",
             "@lint:php",
             "@analyse",
-            "@test",
             "@lint:js",
-            "@build"
+            "@build",
+            "@test"
         ]
     },
     "scripts-descriptions": {
-        "quality": "Aggregate gate: static analysis, unit tests, JS/TS lint, production Vite build. Fails closed on any sub-gate."
+        "quality": "Aggregate gate: static analysis, JS/TS lint, production Vite build, then unit tests — the build runs first so the manifest-backed skin isolation tests assert against real artefacts. Fails closed on any sub-gate."
     },
     "minimum-stability": "stable",
     "prefer-stable": true

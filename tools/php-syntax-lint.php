@@ -7,7 +7,7 @@ declare(strict_types=1);
  * Lints every tracked PHP source file; exits non-zero on the first parse error.
  */
 
-$roots = ['src', 'tests', 'public', 'config', 'tools'];
+$roots = ['src', 'tests', 'public', 'config', 'tools', 'resources'];
 $php = PHP_BINARY;
 $failures = 0;
 $checked = 0;

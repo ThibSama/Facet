@@ -16,5 +16,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["resources/js/**/*.ts", "vite.config.ts", "eslint.config.js"]
+  "include": ["resources/js/**/*.ts", "resources/skins/**/*.ts", "vite.config.ts", "eslint.config.js"]
 }

@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "1.0.0",
+  "experiences": [
+    {
+      "slug": "bachelor-cda-foreach-academy",
+      "kind": "education",
+      "title": "Bachelor Concepteur Développeur d'Applications",
+      "organisation": "Foreach Academy",
+      "location": "France",
+      "period": {
+        "start": "2025",
+        "end": null
+      },
+      "summary": "Parcours en développement web et applications, dans une école spécialisée dans les métiers du développement avec un fort accent mis sur la pratique et les technologies web modernes.",
+      "highlights": [
+        "Cursus centré sur la réalisation de projets concrets et le travail en équipe.",
+        "Approfondissement de l'architecture d'applications, des bonnes pratiques de code et des workflows modernes : Git, intégration continue, déploiement."
+      ],
+      "links": []
+    },
+    {
+      "slug": "bts-sio-slam",
+      "kind": "education",
+      "title": "BTS SIO option SLAM",
+      "organisation": "LTPES Ensemble Saint-Luc",
+      "location": "Cambrai",
+      "period": {
+        "start": "2022",
+        "end": "2024"
+      },
+      "summary": "Services Informatiques aux Organisations, option Solutions Logicielles et Applications Métiers : conception et implémentation de solutions logicielles répondant aux besoins des organisations.",
+      "highlights": [
+        "Maîtrise des étapes du cycle de vie d'un projet informatique, de l'analyse des besoins à la maintenance évolutive.",
+        "Projet d'atelier professionnel Clinique LPFS réalisé en équipe."
+      ],
+      "links": []
+    },
+    {
+      "slug": "dcg-edouard-gand",
+      "kind": "education",
+      "title": "DCG — Diplôme de Comptabilité et de Gestion",
+      "organisation": "Lycée Edouard Gand",
+      "location": "Amiens",
+      "period": {
+        "start": "2021",
+        "end": "2022"
+      },
+      "summary": "Formation en comptabilité et gestion : principes comptables, gestion financière, droit des affaires et économie.",
+      "highlights": [
+        "Analyse d'états financiers et élaboration de budgets.",
+        "Certification Pix obtenue sur l'année scolaire 2021-2022."
+      ],
+      "links": []
+    },
+    {
+      "slug": "baccalaureat-stmg-gestion-finance",
+      "kind": "education",
+      "title": "Baccalauréat STMG option Gestion et Finance",
+      "organisation": "Lycée général Pierre de la Ramée",
+      "location": "Saint-Quentin",
+      "period": {
+        "start": "2018",
+        "end": "2021"
+      },
+      "summary": "Formation initiale en gestion d'entreprise et en finances : gestion financière, comptabilité, droit des affaires et économie.",
+      "highlights": [
+        "Bases en gestion d'entreprise, finance et comptabilité."
+      ],
+      "links": []
+    }
+  ]
+}

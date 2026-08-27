@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1.0.0",
+  "profile": {
+    "name": "Thibault Paul",
+    "headline": "Concepteur développeur d'applications en formation",
+    "location": "France",
+    "summary": "Après un BTS SIO option SLAM, je poursuis mon parcours en Bachelor Concepteur Développeur d'Applications à la Foreach Academy. Je m'intéresse particulièrement au développement d'applications, à la blockchain et au hardware, et j'aime comprendre en profondeur le fonctionnement des systèmes avant de concevoir une solution. Autonome et rigoureux, j'accorde une grande importance à la qualité du travail et au partage.",
+    "focusAreas": [
+      "Développement d'applications",
+      "Blockchain",
+      "Hardware"
+    ],
+    "links": [
+      {
+        "label": "GitHub",
+        "url": "https://github.com/ThibSama",
+        "type": "profile"
+      }
+    ],
+    "portrait": {
+      "source": null,
+      "description": "Portrait de Thibault Paul."
+    }
+  }
+}

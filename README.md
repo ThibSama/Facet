@@ -99,6 +99,7 @@ built `public/build/` directory; no Node runtime is involved.
 
 ```
 config/         Resolved application settings
+content/        Canonical content (versioned JSON, no database)
 public/         Document root — index.php and built assets (public/build/)
 resources/css/  Tailwind entry stylesheet
 resources/js/   TypeScript entrypoint (progressive enhancement only)
@@ -106,6 +107,44 @@ src/            PSR-4 application code (Facet\)
 tests/          PHPUnit — Unit/ and Smoke/
 tools/          Dependency-free maintenance scripts
 ```
+
+---
+
+## Content and routes
+
+Facet separates *what the site says* from *how it looks*, before any skin
+exists.
+
+**Routes** are declared as data in `Facet\Routing\RouteCatalog`. Each of the
+nine canonical routes states its path, accepted methods, visibility, data source
+and a *logical* template id — never a file path. Nothing in routing knows how a
+page is rendered.
+
+| Path                | Methods    | Visibility    | Data source    |
+| ------------------- | ---------- | ------------- | -------------- |
+| `/`                 | GET        | public        | content corpus |
+| `/projects`         | GET        | public        | content corpus |
+| `/projects/{slug}`  | GET        | public        | content corpus |
+| `/about`            | GET        | public        | content corpus |
+| `/contact`          | GET, POST  | public        | message store  |
+| `/login`            | GET, POST  | guest         | auth session   |
+| `/admin`            | GET        | admin         | content corpus |
+| `/admin/messages`   | GET        | admin         | message store  |
+| `/client`           | GET        | authenticated | auth session   |
+
+**Content** lives in `content/` as versioned JSON — outside any database and
+outside any skin — and is loaded into the typed structures in `Facet\Content`
+(`Profile`, `Project`, `Skill`, `Experience`). Those structures carry no
+presentation field, so a skin consumes them without the content knowing the skin
+exists. See `content/README.md` for the editing rules.
+
+Slug grammar is defined once, in `Facet\Support\Slug`, and is enforced both by
+the `/projects/{slug}` route parameter and at corpus load. Malformed and
+duplicate slugs fail deterministically rather than resolving to the wrong entry.
+
+Media is optional throughout: an entry with no image still carries a mandatory
+text description and resolves to a shared fallback reference, so the site builds
+and renders before any final asset exists.
 
 ---
 

@@ -1,0 +1,201 @@
+{
+  "schemaVersion": "1.0.0",
+  "skills": [
+    {
+      "slug": "php",
+      "name": "PHP",
+      "category": "language",
+      "summary": "Langage du projet d'atelier professionnel Clinique LPFS et du portfolio Facet.",
+      "links": []
+    },
+    {
+      "slug": "java",
+      "name": "Java",
+      "category": "language",
+      "summary": "Langage travaillé pendant la formation, notamment sur les projets Morpion Android et Calculatrice.",
+      "links": []
+    },
+    {
+      "slug": "python",
+      "name": "Python",
+      "category": "language",
+      "summary": "Langage abordé dans le cadre de la programmation orientée objet pendant la formation.",
+      "links": []
+    },
+    {
+      "slug": "javascript",
+      "name": "JavaScript",
+      "category": "language",
+      "summary": "Utilisé dans la version précédente du portfolio et dans le projet Clinique LPFS.",
+      "links": []
+    },
+    {
+      "slug": "typescript",
+      "name": "TypeScript",
+      "category": "language",
+      "summary": "Utilisé dans les projets EszterGyori, Kushim et Facet.",
+      "links": []
+    },
+    {
+      "slug": "rust",
+      "name": "Rust",
+      "category": "language",
+      "summary": "Langage principal des services backend de Kushim.",
+      "links": []
+    },
+    {
+      "slug": "html",
+      "name": "HTML",
+      "category": "language",
+      "summary": "Langage de balisage de la version précédente du portfolio.",
+      "links": []
+    },
+    {
+      "slug": "symfony",
+      "name": "Symfony",
+      "category": "framework",
+      "summary": "Framework PHP abordé pendant la formation.",
+      "links": []
+    },
+    {
+      "slug": "tailwind-css",
+      "name": "Tailwind CSS",
+      "category": "framework",
+      "summary": "Utilisé dans la version précédente du portfolio et dans Facet.",
+      "links": []
+    },
+    {
+      "slug": "next-js",
+      "name": "Next.js",
+      "category": "framework",
+      "summary": "Framework du front d'EszterGyori et du site vitrine de Kushim.",
+      "links": []
+    },
+    {
+      "slug": "react",
+      "name": "React",
+      "category": "framework",
+      "summary": "Utilisé dans l'application authentifiée de Kushim et dans le front d'EszterGyori.",
+      "links": []
+    },
+    {
+      "slug": "axum",
+      "name": "Axum",
+      "category": "framework",
+      "summary": "Framework HTTP Rust des services de Kushim.",
+      "links": []
+    },
+    {
+      "slug": "mysql",
+      "name": "MySQL",
+      "category": "database",
+      "summary": "Système de gestion de base de données abordé pendant la formation.",
+      "links": []
+    },
+    {
+      "slug": "postgresql",
+      "name": "PostgreSQL",
+      "category": "database",
+      "summary": "Base de données des services de Kushim.",
+      "links": []
+    },
+    {
+      "slug": "redis",
+      "name": "Redis",
+      "category": "database",
+      "summary": "Utilisé dans l'infrastructure de Kushim.",
+      "links": []
+    },
+    {
+      "slug": "composer",
+      "name": "Composer",
+      "category": "tooling",
+      "summary": "Gestionnaire de dépendances PHP utilisé par Facet.",
+      "links": []
+    },
+    {
+      "slug": "docker",
+      "name": "Docker",
+      "category": "tooling",
+      "summary": "Utilisé pour l'environnement local de Kushim et d'EszterGyori.",
+      "links": []
+    },
+    {
+      "slug": "git",
+      "name": "Git",
+      "category": "tooling",
+      "summary": "Gestion de versions de l'ensemble des projets.",
+      "links": []
+    },
+    {
+      "slug": "github",
+      "name": "GitHub",
+      "category": "tooling",
+      "summary": "Hébergement des dépôts et intégration continue.",
+      "links": []
+    },
+    {
+      "slug": "node-js",
+      "name": "Node.js",
+      "category": "tooling",
+      "summary": "Exécution des outils de build et de l'API de contenu d'EszterGyori.",
+      "links": []
+    },
+    {
+      "slug": "npm",
+      "name": "npm",
+      "category": "tooling",
+      "summary": "Gestionnaire de paquets des chaînes de build front.",
+      "links": []
+    },
+    {
+      "slug": "webpack",
+      "name": "Webpack",
+      "category": "tooling",
+      "summary": "Compilation des actifs de la version précédente du portfolio.",
+      "links": []
+    },
+    {
+      "slug": "vite",
+      "name": "Vite",
+      "category": "tooling",
+      "summary": "Chaîne de build des actifs de Facet.",
+      "links": []
+    },
+    {
+      "slug": "phpunit",
+      "name": "PHPUnit",
+      "category": "tooling",
+      "summary": "Tests automatisés de Facet.",
+      "links": []
+    },
+    {
+      "slug": "phpstan",
+      "name": "PHPStan",
+      "category": "tooling",
+      "summary": "Analyse statique de Facet, configurée au niveau 8.",
+      "links": []
+    },
+    {
+      "slug": "sqldbm",
+      "name": "SqlDBM",
+      "category": "tooling",
+      "summary": "Outil de modélisation de bases de données utilisé pendant la formation.",
+      "links": []
+    },
+    {
+      "slug": "pix",
+      "name": "Certification Pix",
+      "category": "certification",
+      "summary": "Certification Pix obtenue sur l'année scolaire 2021-2022.",
+      "links": []
+    },
+    {
+      "slug": "atelier-rgpd-cnil",
+      "name": "Atelier RGPD de la CNIL",
+      "category": "certification",
+      "summary": "Attestation de suivi de l'atelier RGPD proposé par la CNIL.",
+      "links": []
+    }
+  ]
+}

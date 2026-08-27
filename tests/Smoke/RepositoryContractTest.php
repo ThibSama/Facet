@@ -34,7 +34,14 @@ final class RepositoryContractTest extends TestCase
 
     public function testRequiredPathsExist(): void
     {
-        foreach (['public/index.php', 'src', 'config', 'tests', 'resources/js/app.ts', 'resources/css/app.css'] as $path) {
+        $paths = [
+            'public/index.php', 'src', 'config', 'tests',
+            'resources/js/app.ts', 'resources/css/app.css',
+            'content/profile.json', 'content/projects.json',
+            'content/skills.json', 'content/experiences.json',
+        ];
+
+        foreach ($paths as $path) {
             self::assertFileExists(self::root() . '/' . $path);
         }
     }

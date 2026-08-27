@@ -1,0 +1,159 @@
+{
+  "schemaVersion": "1.0.0",
+  "projects": [
+    {
+      "slug": "kushim",
+      "name": "Kushim",
+      "summary": "Application de suivi et d'analyse de portefeuille d'investissement, construite comme un ensemble de services Rust autour d'une base PostgreSQL.",
+      "context": "Kushim centralise des portefeuilles, enregistre des opérations, permet de rechercher des actifs et de consulter des synthèses, des positions et des instantanés historiques. Le dépôt délimite explicitement ce que le projet n'est pas : ni courtier, ni plateforme d'exécution, ni banque, ni prestataire de paiement, ni fournisseur de données de marché.",
+      "role": "Projet personnel : architecture des services, développement et rédaction de la documentation technique.",
+      "technologies": [
+        "Rust",
+        "Axum",
+        "SQLx",
+        "PostgreSQL",
+        "Redis",
+        "TypeScript",
+        "React",
+        "Next.js",
+        "Docker",
+        "Nginx",
+        "PowerShell"
+      ],
+      "concepts": [
+        "Découpage en services séparés",
+        "API métier synchrone",
+        "Traitements différés par worker",
+        "Instantanés et reconstruction d'historique",
+        "Contrats de données documentés",
+        "Tests de fumée automatisés"
+      ],
+      "status": "in-progress",
+      "outcomes": [
+        "Le point d'étape « démonstration MVP locale » est atteint.",
+        "La chaîne backend de bout en bout est démontrable localement via un test de fumée automatisé de 18 assertions.",
+        "Le dépôt qualifie explicitement le projet d'orienté MVP et non prêt pour la production."
+      ],
+      "period": {
+        "start": "2026-06",
+        "end": null
+      },
+      "links": [
+        {
+          "label": "Dépôt GitHub",
+          "url": "https://github.com/ThibSama/Kushim",
+          "type": "repository"
+        }
+      ],
+      "media": {
+        "source": null,
+        "description": "Vue d'ensemble de l'application Kushim."
+      },
+      "featured": true
+    },
+    {
+      "slug": "scora",
+      "name": "Scora",
+      "summary": "« Second cerveau » personnel appuyé sur une IA exécutée localement, centré sur la mémoire à long terme et la gestion de connaissances.",
+      "context": "Scora explore des usages d'IA privée et locale : conserver une mémoire à long terme, organiser une base de connaissances personnelle et l'interroger par récupération augmentée, sans confier ces données à un service tiers.",
+      "role": "Projet personnel : conception et développement.",
+      "technologies": [],
+      "concepts": [
+        "Second cerveau personnel",
+        "Mémoire à long terme",
+        "Génération augmentée par récupération",
+        "Gestion de connaissances",
+        "Traitements d'IA locaux et privés"
+      ],
+      "status": "in-progress",
+      "outcomes": [],
+      "period": null,
+      "links": [],
+      "media": {
+        "source": null,
+        "description": "Illustration du projet Scora."
+      },
+      "featured": true
+    },
+    {
+      "slug": "biogazen",
+      "name": "Biogazen",
+      "summary": "Outil web interne destiné aux salariés d'une unité de méthanisation, qui organise zones, procédures et contenus opératoires pas à pas.",
+      "context": "L'outil rassemble le contenu d'exploitation d'une unité de méthanisation : un découpage par zones, des procédures et des contenus décrivant les opérations étape par étape, une recherche pour retrouver l'information et une administration à accès contrôlé pour la maintenir.",
+      "role": "Conception et développement de l'outil.",
+      "technologies": [],
+      "concepts": [
+        "Outil web interne",
+        "Organisation par zones",
+        "Procédures pas à pas",
+        "Recherche dans le contenu",
+        "Administration à accès contrôlé"
+      ],
+      "status": "unspecified",
+      "outcomes": [],
+      "period": null,
+      "links": [],
+      "media": {
+        "source": null,
+        "description": "Illustration de l'outil Biogazen."
+      },
+      "featured": true
+    },
+    {
+      "slug": "eszter-gyori",
+      "name": "Eszter",
+      "summary": "Site vitrine avec un parcours de réservation intégré, orienté PHP et MySQL pour un hébergement Hetzner.",
+      "context": "Le projet vise un site vitrine doté d'un parcours de réservation adossé à un calendrier, assorti de besoins de notification. La direction technique retenue est PHP et MySQL, pour un hébergement chez Hetzner.",
+      "role": "Projet personnel : conception et développement.",
+      "technologies": [
+        "PHP",
+        "MySQL",
+        "Hetzner"
+      ],
+      "concepts": [
+        "Site vitrine",
+        "Parcours de réservation",
+        "Calendrier de disponibilités",
+        "Notifications"
+      ],
+      "status": "unspecified",
+      "outcomes": [],
+      "period": {
+        "start": "2026-06",
+        "end": null
+      },
+      "links": [
+        {
+          "label": "Dépôt GitHub",
+          "url": "https://github.com/ThibSama/EszterGyori",
+          "type": "repository"
+        }
+      ],
+      "media": {
+        "source": null,
+        "description": "Illustration du site vitrine Eszter."
+      },
+      "featured": false
+    },
+    {
+      "slug": "math-l-home",
+      "name": "Math L'home",
+      "summary": "Futur site vitrine pour Mathilde. Le projet est prévu mais n'est pas encore créé.",
+      "context": "Le projet est identifié comme prévu : aucun périmètre, aucune technologie, aucune échéance et aucun contenu ne sont arrêtés à ce jour. Cette fiche restera minimale tant qu'aucun élément vérifiable ne vient l'étoffer.",
+      "role": "Projet personnel : conception et développement à venir.",
+      "technologies": [],
+      "concepts": [
+        "Site vitrine"
+      ],
+      "status": "unspecified",
+      "outcomes": [],
+      "period": null,
+      "links": [],
+      "media": {
+        "source": null,
+        "description": "Illustration du futur site vitrine Math L'home."
+      },
+      "featured": false
+    }
+  ]
+}

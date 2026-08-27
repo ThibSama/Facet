@@ -12,6 +12,9 @@
         <testsuite name="Unit">
             <directory>tests/Unit</directory>
         </testsuite>
+        <testsuite name="Content">
+            <directory>tests/Content</directory>
+        </testsuite>
         <testsuite name="Smoke">
             <directory>tests/Smoke</directory>
         </testsuite>

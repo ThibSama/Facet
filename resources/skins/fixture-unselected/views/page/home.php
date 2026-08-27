@@ -7,30 +7,29 @@
  * a test can select this skin explicitly and observe that the swap is real:
  * different markup, different assets, same route and same content.
  *
+ * @var \Facet\Html\ViewContext    $view
  * @var \Facet\Asset\AssetBundle   $assets
  * @var \Facet\Skin\SkinDefinition $skin
- * @var string $appName
- * @var string $locale
+ * @var string                     $appName
+ * @var string                     $locale
  */
 
 declare(strict_types=1);
 
-$e = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES);
-
 ?>
 <!doctype html>
-<html lang="<?= $e($locale) ?>" data-skin="<?= $e($skin->id()) ?>">
+<html lang="<?= $view->attr($locale) ?>" data-skin="<?= $view->attr($skin->id()) ?>">
 <head>
     <meta charset="utf-8">
-    <title><?= $e($appName) ?></title>
+    <title><?= $view->text($appName) ?></title>
     <?php foreach ($assets->styles() as $style): ?>
-    <link rel="stylesheet" href="<?= $e($style) ?>">
+    <link rel="stylesheet" href="<?= $view->url($style) ?>">
     <?php endforeach; ?>
 </head>
 <body>
-    <main><h1><?= $e($appName) ?></h1></main>
+    <main><h1><?= $view->text($appName) ?></h1></main>
     <?php foreach ($assets->scripts() as $script): ?>
-    <script type="module" src="<?= $e($script) ?>"></script>
+    <script type="module" src="<?= $view->url($script) ?>"></script>
     <?php endforeach; ?>
 </body>
 </html>

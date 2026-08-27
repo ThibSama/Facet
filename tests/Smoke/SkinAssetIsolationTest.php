@@ -8,6 +8,7 @@ use Facet\Asset\AssetResolver;
 use Facet\Asset\SharedAssets;
 use Facet\Config\Config;
 use Facet\Http\Application;
+use Facet\Http\Request;
 use Facet\Skin\SkinDefinition;
 use Facet\Skin\SkinRegistry;
 use Facet\Support\ViteManifest;
@@ -142,7 +143,7 @@ final class SkinAssetIsolationTest extends TestCase
     public function testRenderedDocumentReferencesOnlySharedAndSelectedSkinAssets(): void
     {
         $manifest = self::manifest();
-        $html = self::render();
+        $html = self::renderThroughEntrypoint();
 
         foreach ([self::SHARED_ENTRY, self::SELECTED_ENTRY] as $entry) {
             self::assertStringContainsString($manifest->script($entry), $html);
@@ -170,7 +171,7 @@ final class SkinAssetIsolationTest extends TestCase
     public function testDevelopmentSkinOverrideStillRendersOnlyThatSkinsAssets(): void
     {
         $manifest = self::manifest();
-        $html = self::application('local')->handle(['skin' => SkinRegistry::EVOLVING_INTERFACE]);
+        $html = self::render(self::application('local'), ['skin' => SkinRegistry::EVOLVING_INTERFACE]);
 
         self::assertStringContainsString('data-skin="evolving-interface"', $html);
         self::assertStringContainsString($manifest->script(self::SELECTED_ENTRY), $html);
@@ -180,7 +181,7 @@ final class SkinAssetIsolationTest extends TestCase
     public function testAProductionRequestForTheFixtureRendersTheDefaultSkin(): void
     {
         $manifest = self::manifest();
-        $html = self::application('production')->handle(['skin' => 'fixture-unselected']);
+        $html = self::render(self::application('production'), ['skin' => 'fixture-unselected']);
 
         self::assertStringContainsString('data-skin="evolving-interface"', $html);
         self::assertStringContainsString($manifest->script(self::SELECTED_ENTRY), $html);
@@ -202,7 +203,7 @@ final class SkinAssetIsolationTest extends TestCase
             SkinRegistry::EVOLVING_INTERFACE
         );
 
-        $development = self::application('local', $registry)->handle(['skin' => 'fixture-unselected']);
+        $development = self::render(self::application('local', $registry), ['skin' => 'fixture-unselected']);
 
         self::assertStringContainsString('data-skin="fixture-unselected"', $development);
         self::assertStringContainsString($manifest->script(self::UNSELECTED_ENTRY), $development);
@@ -210,7 +211,7 @@ final class SkinAssetIsolationTest extends TestCase
         // The shared layer is present either way — that is what makes it shared.
         self::assertStringContainsString($manifest->script(self::SHARED_ENTRY), $development);
 
-        $production = self::application('production', $registry)->handle(['skin' => 'fixture-unselected']);
+        $production = self::render(self::application('production', $registry), ['skin' => 'fixture-unselected']);
 
         self::assertStringContainsString('data-skin="evolving-interface"', $production);
         self::assertStringContainsString($manifest->script(self::SELECTED_ENTRY), $production);
@@ -311,9 +312,25 @@ final class SkinAssetIsolationTest extends TestCase
     }
 
     /**
+     * Renders the home route in-process. The application is driven with an
+     * explicit Request, so the query string a test wants to prove something
+     * about is the one the runtime actually sees.
+     *
      * @param array<string, string> $query
      */
-    private static function render(string $environment = 'local', array $query = []): string
+    private static function render(Application $application, array $query = []): string
+    {
+        $response = $application->handle(Request::create('GET', '/', $query));
+
+        self::assertSame(200, $response->status(), 'Home must render successfully');
+
+        return $response->body();
+    }
+
+    /**
+     * @param array<string, string> $query
+     */
+    private static function renderThroughEntrypoint(string $environment = 'local', array $query = []): string
     {
         $command = sprintf(
             'APP_NAME=Facet APP_ENV=%s APP_KEY=test-key QUERY_STRING=%s %s -d variables_order=EGPCS %s 2>&1',

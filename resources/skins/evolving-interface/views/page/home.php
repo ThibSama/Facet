@@ -3,43 +3,51 @@
 /**
  * evolving-interface — logical view "page.home".
  *
- * Scaffolding that proves the boundary, not the final design: it renders only
- * values the shared runtime handed it and reads nothing from the content
- * corpus directly. The document references exactly the asset URLs in the
- * bundle it was given, which is what keeps skin isolation observable.
+ * Renders only values the shared runtime handed it. Every printed value goes
+ * through `$view`, so escaping is the default and raw markup would have to be
+ * an explicit Html::trusted() call that is not here.
  *
- * @var \Facet\Asset\AssetBundle  $assets
- * @var \Facet\Skin\SkinDefinition $skin
- * @var string $appName
- * @var string $locale
- * @var string $environment
+ * @var \Facet\Html\ViewContext  $view
+ * @var \Facet\Content\Profile   $profile
+ * @var list<\Facet\Content\Project> $projects
+ * @var string                   $appName
+ * @var string                   $environment
  */
 
 declare(strict_types=1);
 
-$e = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES);
+use Facet\Html\Html;
+
+$title = null;
+
+ob_start();
 
 ?>
-<!doctype html>
-<html lang="<?= $e($locale) ?>" data-skin="<?= $e($skin->id()) ?>">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= $e($appName) ?></title>
-    <?php foreach ($assets->styles() as $style): ?>
-    <link rel="stylesheet" href="<?= $e($style) ?>">
-    <?php endforeach; ?>
-</head>
-<body class="min-h-screen bg-white text-slate-900 antialiased">
-    <main class="mx-auto max-w-2xl px-6 py-24">
-        <h1 class="text-3xl font-semibold tracking-tight"><?= $e($appName) ?></h1>
-        <p class="mt-4 text-slate-600">
-            Server-rendered PHP foundation. Environment:
-            <code><?= $e($environment) ?></code>.
-        </p>
-    </main>
-    <?php foreach ($assets->scripts() as $script): ?>
-    <script type="module" src="<?= $e($script) ?>"></script>
-    <?php endforeach; ?>
-</body>
-</html>
+<h1 class="text-3xl font-semibold tracking-tight"><?= $view->text($profile->name()) ?></h1>
+<p class="mt-2 text-lg text-slate-600"><?= $view->text($profile->headline()) ?></p>
+<p class="mt-6 max-w-prose text-slate-700"><?= $view->text($profile->summary()) ?></p>
+
+<?php if ($projects !== []): ?>
+<section class="mt-12" aria-labelledby="featured">
+    <h2 id="featured" class="text-xl font-semibold">Selected work</h2>
+    <ul class="mt-4 space-y-4">
+        <?php foreach ($projects as $project): ?>
+        <li>
+            <a class="font-medium hover:underline" href="<?= $view->url('/projects/' . $project->slug()) ?>">
+                <?= $view->text($project->name()) ?>
+            </a>
+            <p class="text-slate-600"><?= $view->text($project->summary()) ?></p>
+        </li>
+        <?php endforeach; ?>
+    </ul>
+</section>
+<?php endif; ?>
+
+<p class="mt-12 text-sm text-slate-500">
+    Environment: <code><?= $view->text($environment) ?></code>
+</p>
+<?php
+
+$content = Html::trusted((string) ob_get_clean());
+
+require dirname(__DIR__) . '/layout.php';

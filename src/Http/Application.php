@@ -4,26 +4,36 @@ declare(strict_types=1);
 
 namespace Facet\Http;
 
+use Facet\Asset\AssetBundle;
 use Facet\Asset\AssetResolver;
 use Facet\Config\Config;
+use Facet\Content\Corpus;
+use Facet\Content\CorpusLoader;
+use Facet\Content\Project;
+use Facet\Routing\HttpMethod;
 use Facet\Routing\RouteCatalog;
+use Facet\Routing\RouteDefinition;
 use Facet\Skin\Selection\DefaultSkinSelectionPolicy;
 use Facet\Skin\Selection\SkinSelection;
 use Facet\Skin\Selection\SkinSelectionContext;
 use Facet\Skin\Selection\SkinSelectionPolicy;
+use Facet\Skin\SkinDefinition;
 use Facet\Skin\SkinRegistry;
 use Facet\Skin\SkinRenderer;
+use Facet\Support\Slug;
+use Throwable;
 
 /**
- * Wires the shared runtime to whichever skin the policy selects.
+ * The HTTP application: a Request goes in, a Response comes out.
  *
- * Everything the HTTP entrypoint used to do inline lives here so it can be
- * driven with plain arrays in a test — the CLI never populates $_GET, and a
- * skin-override guarantee that cannot be exercised is not a guarantee.
+ * It is a pure function of its input. No superglobal is read, no header is
+ * sent, nothing is echoed — which is what allows every dispatch rule below,
+ * including the error paths, to be exercised in a plain unit test.
  *
- * The class knows about routes, assets and skins, and about none of their
- * internals: it asks a route for a logical view, a policy for a skin, and the
- * asset layer for that skin's URLs.
+ * The class knows about routes, assets, skins and content, and about none of
+ * their internals: it asks the router which route a request reached, a route
+ * for its logical view, a policy for a skin, and the asset layer for that
+ * skin's URLs. It never names a template file.
  */
 final class Application
 {
@@ -39,13 +49,21 @@ final class Application
 
     private SkinRenderer $renderer;
 
+    private Router $router;
+
+    private ErrorPresenter $errors;
+
+    private ?Corpus $corpus = null;
+
     private function __construct(
         string $basePath,
         Config $config,
         SkinRegistry $registry,
         SkinSelectionPolicy $policy,
         AssetResolver $assets,
-        SkinRenderer $renderer
+        SkinRenderer $renderer,
+        Router $router,
+        ErrorPresenter $errors
     ) {
         $this->basePath = $basePath;
         $this->config = $config;
@@ -53,23 +71,30 @@ final class Application
         $this->policy = $policy;
         $this->assets = $assets;
         $this->renderer = $renderer;
+        $this->router = $router;
+        $this->errors = $errors;
     }
 
     public static function boot(
         string $basePath,
         ?Config $config = null,
         ?SkinRegistry $registry = null,
-        ?SkinSelectionPolicy $policy = null
+        ?SkinSelectionPolicy $policy = null,
+        ?Router $router = null
     ): self {
         $basePath = rtrim(str_replace('\\', '/', $basePath), '/');
+        $config ??= Config::fromEnvironment($basePath);
+        $renderer = SkinRenderer::forBasePath($basePath);
 
         return new self(
             $basePath,
-            $config ?? Config::fromEnvironment($basePath),
+            $config,
             $registry ?? SkinRegistry::default(),
             $policy ?? new DefaultSkinSelectionPolicy(),
             AssetResolver::fromManifestFile(self::manifestPath($basePath)),
-            SkinRenderer::forBasePath($basePath)
+            $renderer,
+            $router ?? Router::fromCatalog(),
+            new ErrorPresenter($renderer, $config->isDebug())
         );
     }
 
@@ -88,6 +113,11 @@ final class Application
         return $this->basePath;
     }
 
+    public function router(): Router
+    {
+        return $this->router;
+    }
+
     /**
      * @param array<array-key, mixed> $query
      * @param array<array-key, mixed> $cookies
@@ -101,27 +131,185 @@ final class Application
     }
 
     /**
-     * Renders the home route with the selected skin.
+     * Dispatches one request.
      *
-     * Only one route is wired at this checkpoint; dispatching the rest is a
-     * later concern and does not change this seam, because the route already
-     * supplies the logical view name.
-     *
-     * @param array<array-key, mixed> $query
-     * @param array<array-key, mixed> $cookies
+     * Every failure below this line — a missing route, a wrong method, a broken
+     * handler, a template that throws — leaves through {@see ErrorPresenter},
+     * so no code path can return a response whose disclosure was not decided in
+     * one place.
      */
-    public function handle(array $query = [], array $cookies = []): string
+    public function handle(Request $request): Response
     {
-        $selection = $this->selectSkin($query, $cookies);
-        $skin = $selection->skin();
+        $skin = null;
 
-        return $this->renderer->render($skin, RouteCatalog::get(RouteCatalog::HOME)->template(), [
-            'assets' => $this->assets->resolve($skin),
-            'skin' => $skin,
-            'selection' => $selection,
+        try {
+            $selection = $this->selectSkin($request->query(), $request->cookies());
+            $skin = $selection->skin();
+
+            if ($request->needsCanonicalRedirect()) {
+                // One URL per page: the non-canonical spelling is redirected
+                // rather than served, so links and caches agree.
+                return Response::redirect($request->canonicalTarget(), Response::STATUS_MOVED_PERMANENTLY);
+            }
+
+            $match = $this->router->match($request);
+
+            if ($match->isNotFound()) {
+                throw HttpException::notFound(sprintf('No route matches "%s".', $request->path()));
+            }
+
+            if ($match->isMethodNotAllowed()) {
+                throw HttpException::methodNotAllowed(
+                    $match->allowHeader(),
+                    sprintf('Method %s is not accepted by "%s".', $request->method(), $request->path())
+                );
+            }
+
+            return $this->dispatch($match->route(), $match->parameters(), $request, $selection);
+        } catch (HttpException $error) {
+            return $this->errors->present(
+                $error,
+                $error->statusCode(),
+                $skin,
+                $this->sharedData($request, $skin),
+                $request
+            );
+        } catch (Throwable $error) {
+            return $this->errors->present(
+                $error,
+                Response::STATUS_INTERNAL_SERVER_ERROR,
+                $skin,
+                $this->sharedData($request, $skin),
+                $request
+            );
+        }
+    }
+
+    /**
+     * Routes that have a handler at this checkpoint. Everything else in the
+     * catalog is declared but not yet built, and says so with 501 rather than
+     * pretending it does not exist.
+     *
+     * @param array<string, string> $parameters
+     */
+    private function dispatch(
+        RouteDefinition $route,
+        array $parameters,
+        Request $request,
+        SkinSelection $selection
+    ): Response {
+        $shared = $this->sharedData($request, $selection->skin(), $selection);
+
+        return match ($route->name()) {
+            RouteCatalog::HOME => $this->page($route, $selection, $shared + [
+                'profile' => $this->corpus()->profile(),
+                'projects' => $this->corpus()->featuredProjects(),
+            ]),
+            RouteCatalog::PROJECTS_INDEX => $this->page($route, $selection, $shared + [
+                'projects' => $this->corpus()->projects(),
+            ]),
+            RouteCatalog::PROJECTS_SHOW => $this->page($route, $selection, $shared + [
+                'project' => $this->requireProject($parameters['slug'] ?? ''),
+            ]),
+            RouteCatalog::ABOUT => $this->page($route, $selection, $shared + [
+                'profile' => $this->corpus()->profile(),
+                'skills' => $this->corpus()->skills(),
+                'experiences' => $this->corpus()->experiences(),
+            ]),
+            RouteCatalog::CONTACT => $this->contact($route, $request, $selection, $shared),
+            default => throw HttpException::notImplemented(sprintf(
+                'Route "%s" is declared but has no handler yet.',
+                $route->name()
+            )),
+        };
+    }
+
+    /**
+     * The contact form renders on GET. Submission handling needs a message
+     * store, which is a later checkpoint — but the method distinction is real
+     * today, so POST is answered explicitly instead of falling through to the
+     * GET rendering.
+     *
+     * @param array<string, mixed> $shared
+     */
+    private function contact(
+        RouteDefinition $route,
+        Request $request,
+        SkinSelection $selection,
+        array $shared
+    ): Response {
+        if ($request->isMethod(HttpMethod::Post)) {
+            throw HttpException::notImplemented('Contact submissions are not stored yet.');
+        }
+
+        return $this->page($route, $selection, $shared);
+    }
+
+    /**
+     * Renders a route's declared logical view with the selected skin.
+     *
+     * The route supplies the view identifier and the skin supplies the file:
+     * no path is ever composed here, which is what keeps shared HTTP code from
+     * knowing a single skin template location.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function page(RouteDefinition $route, SkinSelection $selection, array $data): Response
+    {
+        return Response::html($this->renderer->render($selection->skin(), $route->template(), $data));
+    }
+
+    /**
+     * Validates the URL parameter through the canonical slug contract, then
+     * resolves it. A malformed slug never reaches the corpus, and an unknown
+     * one is a 404 rather than an exception surfacing to the user.
+     */
+    private function requireProject(string $slug): Project
+    {
+        if (!Slug::isValid($slug)) {
+            throw HttpException::notFound(sprintf('"%s" is not a valid slug.', $slug));
+        }
+
+        $project = $this->corpus()->findProject(Slug::fromString($slug));
+
+        if ($project === null) {
+            throw HttpException::notFound(sprintf('No project has the slug "%s".', $slug));
+        }
+
+        return $project;
+    }
+
+    /**
+     * Data every view of a request receives, whatever it renders.
+     *
+     * @return array<string, mixed>
+     */
+    private function sharedData(Request $request, ?SkinDefinition $skin, ?SkinSelection $selection = null): array
+    {
+        $data = [
             'appName' => $this->config->get('APP_NAME', 'Facet') ?? 'Facet',
             'locale' => $this->config->get('APP_LOCALE', 'en') ?? 'en',
             'environment' => $this->config->environment(),
-        ]);
+            'path' => $request->path(),
+            'assets' => $skin === null ? AssetBundle::empty() : $this->assets->resolve($skin),
+        ];
+
+        if ($skin !== null) {
+            $data['skin'] = $skin;
+        }
+
+        if ($selection !== null) {
+            $data['selection'] = $selection;
+        }
+
+        return $data;
+    }
+
+    /**
+     * The canonical corpus, loaded once per request.
+     */
+    private function corpus(): Corpus
+    {
+        return $this->corpus ??= CorpusLoader::default($this->basePath)->load();
     }
 }

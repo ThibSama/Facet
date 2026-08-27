@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Facet\Tests\Unit\Skin;
 
 use Facet\Skin\SkinRegistry;
+use Facet\Tests\Support\ContentFactory;
 use Facet\Skin\SkinRenderer;
 use Facet\Skin\SkinViewLocator;
 use Facet\Skin\UnknownViewException;
@@ -74,6 +75,9 @@ final class SkinViewLocatorTest extends TestCase
             'appName' => 'Facet',
             'locale' => 'en',
             'environment' => 'testing',
+            'path' => '/',
+            'profile' => ContentFactory::profile(),
+            'projects' => [ContentFactory::project()],
         ]);
 
         self::assertStringContainsString('<!doctype html>', $html);

@@ -1,0 +1,26 @@
+# Dependencies
+/vendor/
+/node_modules/
+
+# Build output
+/public/build/
+/public/hot
+.vite/
+
+# Environment (never track real secrets)
+.env
+.env.*
+!.env.example
+
+# Tooling caches / reports
+/.phpunit.cache/
+/.phpunit.result.cache
+/var/
+/coverage/
+*.log
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

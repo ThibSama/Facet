@@ -1,0 +1,13 @@
+@import 'tailwindcss';
+
+/*
+ * Facet base stylesheet.
+ * Visual design, theming and skins are deliberately out of scope at this
+ * checkpoint: this file only proves the Tailwind v4 pipeline is wired.
+ */
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+}

@@ -125,6 +125,8 @@ final class RouterTest extends TestCase
             ['/projects/' . str_repeat('a', Slug::MAX_LENGTH + 1)],
             ['/projects/%2E%2E%2F%2E%2E%2Fetc%2Fpasswd'],
             ['/projects/kushim%20'],
+            ['/projects/a%2Fb'],
+            ['/projects/kushim%00'],
         ];
     }
 

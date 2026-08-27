@@ -167,13 +167,20 @@ final class Request
     }
 
     /**
-     * True when the received path is not its own canonical form — a trailing
-     * slash or a repeated separator. The caller decides whether to redirect;
-     * the request only reports the discrepancy.
+     * True when the received path differs from the URL-encoded canonical path.
+     * Percent-triplet casing is immaterial: changing only `%2f` to `%2F` would
+     * still redirect to the same effective path. The caller decides whether to
+     * redirect; the request only reports a genuine discrepancy.
      */
     public function needsCanonicalRedirect(): bool
     {
-        return self::pathOf($this->target) !== $this->path;
+        $received = preg_replace_callback(
+            '/%[0-9a-f]{2}/i',
+            static fn (array $match): string => strtoupper($match[0]),
+            self::pathOf($this->target)
+        );
+
+        return $received !== $this->canonicalPath();
     }
 
     /**
@@ -182,13 +189,9 @@ final class Request
      */
     public function canonicalTarget(): string
     {
-        $encoded = $this->segments === []
-            ? '/'
-            : '/' . implode('/', array_map(rawurlencode(...), $this->segments));
-
         $queryString = $this->queryString();
 
-        return $queryString === '' ? $encoded : $encoded . '?' . $queryString;
+        return $queryString === '' ? $this->canonicalPath() : $this->canonicalPath() . '?' . $queryString;
     }
 
     public function queryString(): string
@@ -281,10 +284,18 @@ final class Request
                 continue;
             }
 
-            $segments[] = str_replace("\0", '', rawurldecode($segment));
+            $segments[] = rawurldecode($segment);
         }
 
         return [$segments === [] ? '/' : '/' . implode('/', $segments), $segments];
+    }
+
+    /** Encodes the decoded routing segments back into their canonical URL path. */
+    private function canonicalPath(): string
+    {
+        return $this->segments === []
+            ? '/'
+            : '/' . implode('/', array_map(rawurlencode(...), $this->segments));
     }
 
     /**

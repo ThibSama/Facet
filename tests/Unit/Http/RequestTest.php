@@ -91,9 +91,12 @@ final class RequestTest extends TestCase
         self::assertCount(2, $smuggled->segments());
     }
 
-    public function testNullBytesAreStrippedFromSegments(): void
+    public function testNullBytesRemainVisibleToParameterValidation(): void
     {
-        self::assertSame(['projects', 'kushim'], Request::create('GET', '/projects/kushim%00')->segments());
+        $request = Request::create('GET', '/projects/kushim%00');
+
+        self::assertSame(['projects', "kushim\0"], $request->segments());
+        self::assertFalse($request->needsCanonicalRedirect());
     }
 
     public function testNonCanonicalPathsAreReportedWithTheirCanonicalTarget(): void
@@ -105,6 +108,40 @@ final class RequestTest extends TestCase
 
         self::assertFalse(Request::create('GET', '/projects')->needsCanonicalRedirect());
         self::assertFalse(Request::create('GET', '/')->needsCanonicalRedirect());
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: array<string, string>, 2: bool, 3: string}>
+     */
+    public static function canonicalisationCases(): array
+    {
+        return [
+            'encoded separator' => ['/projects/a%2Fb', [], false, '/projects/a%2Fb'],
+            'lowercase encoded separator' => ['/projects/a%2fb', [], false, '/projects/a%2Fb'],
+            'trailing slash' => ['/projects/', [], true, '/projects'],
+            'repeated slash with query' => ['/projects//', ['page' => '2'], true, '/projects?page=2'],
+            'encoded valid slug' => ['/projects/ku%73him', [], true, '/projects/kushim'],
+            'already canonical' => ['/projects/kushim', [], false, '/projects/kushim'],
+            'encoded null' => ['/projects/kushim%00', [], false, '/projects/kushim%00'],
+        ];
+    }
+
+    /** @param array<string, string> $query */
+    #[DataProvider('canonicalisationCases')]
+    public function testCanonicalRedirectsNeverTargetTheInboundPath(
+        string $target,
+        array $query,
+        bool $redirects,
+        string $canonicalTarget
+    ): void {
+        $request = Request::create('GET', $target, $query);
+
+        self::assertSame($redirects, $request->needsCanonicalRedirect());
+        self::assertSame($canonicalTarget, $request->canonicalTarget());
+
+        if ($redirects) {
+            self::assertNotSame($target, $request->canonicalTarget());
+        }
     }
 
     public function testFromGlobalsAdaptsServerArraysWithoutReadingThem(): void

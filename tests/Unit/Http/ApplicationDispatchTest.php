@@ -11,6 +11,7 @@ use Facet\Http\Request;
 use Facet\Http\Response;
 use Facet\Routing\HttpMethod;
 use Facet\Routing\RouteCatalog;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -128,6 +129,39 @@ final class ApplicationDispatchTest extends TestCase
 
         self::assertSame(301, $response->status());
         self::assertSame('/projects?page=2', $response->header('Location'));
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: array<string, string>, 2: int, 3: ?string}>
+     */
+    public static function canonicalDispatchCases(): array
+    {
+        return [
+            'encoded separator' => ['/projects/a%2Fb', [], 404, null],
+            'trailing slash' => ['/projects/', [], 301, '/projects'],
+            'repeated slash with query' => ['/projects//', ['page' => '2'], 301, '/projects?page=2'],
+            'encoded valid slug' => ['/projects/ku%73him', [], 301, '/projects/kushim'],
+            'already canonical' => ['/projects/kushim', [], 200, null],
+            'encoded null' => ['/projects/kushim%00', [], 404, null],
+        ];
+    }
+
+    /** @param array<string, string> $query */
+    #[DataProvider('canonicalDispatchCases')]
+    public function testCanonicalisationCooperatesWithRoutingAndParameterValidation(
+        string $target,
+        array $query,
+        int $status,
+        ?string $location
+    ): void {
+        $response = self::app()->handle(Request::create('GET', $target, $query));
+
+        self::assertSame($status, $response->status());
+        self::assertSame($location, $response->header('Location'));
+
+        if ($location !== null) {
+            self::assertNotSame($target, $location, 'A redirect must not point back to its inbound target');
+        }
     }
 
     public function testEveryPublicContentRouteRendersOrDeclaresItselfUnbuilt(): void

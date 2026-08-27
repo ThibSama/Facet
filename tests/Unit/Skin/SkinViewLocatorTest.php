@@ -78,11 +78,16 @@ final class SkinViewLocatorTest extends TestCase
             'path' => '/',
             'profile' => ContentFactory::profile(),
             'projects' => [ContentFactory::project()],
+            'skills' => [ContentFactory::skill()],
+            'experiences' => [ContentFactory::experience()],
         ]);
 
         self::assertStringContainsString('<!doctype html>', $html);
         self::assertStringContainsString('data-skin="evolving-interface"', $html);
-        self::assertStringContainsString('testing', $html);
+        // The view renders the content it was handed, and nothing about the
+        // runtime: the environment is shared data, not public copy.
+        self::assertStringContainsString('Fixture Person', $html);
+        self::assertStringNotContainsString('testing', $html);
     }
 
     public function testRendererEmitsNothingWhenTheViewIsUnknown(): void

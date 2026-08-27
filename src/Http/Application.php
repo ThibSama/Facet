@@ -210,6 +210,8 @@ final class Application
             RouteCatalog::HOME => $this->page($route, $selection, $shared + [
                 'profile' => $this->corpus()->profile(),
                 'projects' => $this->corpus()->featuredProjects(),
+                'skills' => $this->corpus()->skills(),
+                'experiences' => $this->corpus()->experiences(),
             ]),
             RouteCatalog::PROJECTS_INDEX => $this->page($route, $selection, $shared + [
                 'projects' => $this->corpus()->projects(),

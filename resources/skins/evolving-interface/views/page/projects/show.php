@@ -20,27 +20,27 @@ $title = $project->name();
 ob_start();
 
 ?>
-<p class="text-sm text-slate-500">
-    <a class="underline" href="<?= $view->url('/projects') ?>">Projects</a>
+<p class="text-sm facet-ink-subtle">
+    <a class="facet-link underline" href="<?= $view->url('/projects') ?>">Projects</a>
 </p>
 <h1 class="mt-2 text-3xl font-semibold tracking-tight"><?= $view->text($project->name()) ?></h1>
-<p class="mt-4 max-w-prose text-lg text-slate-700"><?= $view->text($project->summary()) ?></p>
+<p class="mt-4 max-w-prose text-lg facet-ink-muted"><?= $view->text($project->summary()) ?></p>
 
 <dl class="mt-8 space-y-4">
     <div>
-        <dt class="text-sm font-medium text-slate-500">Role</dt>
+        <dt class="text-sm font-medium facet-ink-subtle">Role</dt>
         <dd><?= $view->text($project->role()) ?></dd>
     </div>
     <div>
-        <dt class="text-sm font-medium text-slate-500">Context</dt>
+        <dt class="text-sm font-medium facet-ink-subtle">Context</dt>
         <dd><?= $view->text($project->context()) ?></dd>
     </div>
     <div>
-        <dt class="text-sm font-medium text-slate-500">Status</dt>
+        <dt class="text-sm font-medium facet-ink-subtle">Status</dt>
         <dd><?= $view->text($project->status()->value) ?></dd>
     </div>
     <div>
-        <dt class="text-sm font-medium text-slate-500">Technologies</dt>
+        <dt class="text-sm font-medium facet-ink-subtle">Technologies</dt>
         <dd><?= $view->join($project->technologies()) ?></dd>
     </div>
 </dl>
@@ -62,7 +62,7 @@ ob_start();
     <ul class="mt-4 space-y-1">
         <?php foreach ($project->links() as $link): ?>
         <li>
-            <a class="underline" href="<?= $view->url($link->url()) ?>" rel="noopener noreferrer">
+            <a class="facet-link underline" href="<?= $view->url($link->url()) ?>" rel="noopener noreferrer">
                 <?= $view->text($link->label()) ?>
             </a>
         </li>

@@ -24,8 +24,8 @@ ob_start();
 
 ?>
 <h1 class="text-3xl font-semibold tracking-tight"><?= $view->text($profile->name()) ?></h1>
-<p class="mt-2 text-lg text-slate-600"><?= $view->text($profile->headline()) ?></p>
-<p class="mt-6 max-w-prose text-slate-700"><?= $view->text($profile->summary()) ?></p>
+<p class="mt-2 text-lg facet-ink-muted"><?= $view->text($profile->headline()) ?></p>
+<p class="mt-6 max-w-prose facet-ink-muted"><?= $view->text($profile->summary()) ?></p>
 
 <?php if ($projects !== []): ?>
 <section class="mt-12" aria-labelledby="featured">
@@ -33,17 +33,17 @@ ob_start();
     <ul class="mt-4 space-y-4">
         <?php foreach ($projects as $project): ?>
         <li>
-            <a class="font-medium hover:underline" href="<?= $view->url('/projects/' . $project->slug()) ?>">
+            <a class="facet-link font-medium hover:underline" href="<?= $view->url('/projects/' . $project->slug()) ?>">
                 <?= $view->text($project->name()) ?>
             </a>
-            <p class="text-slate-600"><?= $view->text($project->summary()) ?></p>
+            <p class="facet-ink-muted"><?= $view->text($project->summary()) ?></p>
         </li>
         <?php endforeach; ?>
     </ul>
 </section>
 <?php endif; ?>
 
-<p class="mt-12 text-sm text-slate-500">
+<p class="mt-12 text-sm facet-ink-subtle">
     Environment: <code><?= $view->text($environment) ?></code>
 </p>
 <?php

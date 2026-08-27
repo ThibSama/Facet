@@ -19,14 +19,14 @@ ob_start();
 
 ?>
 <h1 class="text-3xl font-semibold tracking-tight">About</h1>
-<p class="mt-4 max-w-prose text-slate-700"><?= $view->text($profile->summary()) ?></p>
-<p class="mt-2 text-sm text-slate-500"><?= $view->text($profile->location()) ?></p>
+<p class="mt-4 max-w-prose facet-ink-muted"><?= $view->text($profile->summary()) ?></p>
+<p class="mt-2 text-sm facet-ink-subtle"><?= $view->text($profile->location()) ?></p>
 
 <section class="mt-12" aria-labelledby="skills">
     <h2 id="skills" class="text-xl font-semibold">Skills</h2>
     <ul class="mt-4 flex flex-wrap gap-2 text-sm">
         <?php foreach ($skills as $skill): ?>
-        <li class="rounded border border-slate-200 px-2 py-1"><?= $view->text($skill->name()) ?></li>
+        <li class="rounded border facet-border px-2 py-1"><?= $view->text($skill->name()) ?></li>
         <?php endforeach; ?>
     </ul>
 </section>
@@ -37,7 +37,7 @@ ob_start();
         <?php foreach ($experiences as $experience): ?>
         <li>
             <p class="font-medium"><?= $view->text($experience->title()) ?></p>
-            <p class="text-slate-600"><?= $view->text($experience->summary()) ?></p>
+            <p class="facet-ink-muted"><?= $view->text($experience->summary()) ?></p>
         </li>
         <?php endforeach; ?>
     </ul>

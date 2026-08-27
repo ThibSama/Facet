@@ -5,10 +5,16 @@
  * visual design: it declares the tokens the skin owns and nothing more. The
  * shared base stylesheet (resources/css/app.css) is loaded alongside it and is
  * where Tailwind is imported — a skin never re-imports the framework.
+ *
+ * The skin tokens now alias the shared *structural* tokens instead of naming
+ * literal colours. That keeps this file theme-correct for free — it follows
+ * light, dark and an explicit `[data-theme]` choice without restating any of
+ * them — and leaves the names in place for Phase 4, when this skin gets an
+ * identity of its own and these aliases become real values.
  */
 
 [data-skin='evolving-interface'] {
   --facet-skin-id: 'evolving-interface';
-  --facet-skin-surface: #ffffff;
-  --facet-skin-ink: #0f172a;
+  --facet-skin-surface: var(--facet-surface);
+  --facet-skin-ink: var(--facet-ink);
 }

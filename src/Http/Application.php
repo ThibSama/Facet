@@ -10,6 +10,7 @@ use Facet\Config\Config;
 use Facet\Content\Corpus;
 use Facet\Content\CorpusLoader;
 use Facet\Content\Project;
+use Facet\Navigation\Navigation;
 use Facet\Routing\HttpMethod;
 use Facet\Routing\RouteCatalog;
 use Facet\Routing\RouteDefinition;
@@ -302,6 +303,10 @@ final class Application
             'environment' => $this->config->environment(),
             'path' => $request->path(),
             'assets' => $assets ?? AssetBundle::empty(),
+            // The shell is rendered by every view, including error views, so
+            // the navigation model is shared data rather than page data — a
+            // 404 gets the same working header as a 200.
+            'navigation' => Navigation::primary($request->path()),
         ];
 
         if ($skin !== null) {

@@ -23,18 +23,18 @@ use Facet\Html\Html;
 ob_start();
 
 ?>
-<p class="text-sm font-medium text-slate-500"><?= $view->text($status) ?></p>
+<p class="text-sm font-medium facet-ink-subtle"><?= $view->text($status) ?></p>
 <h1 class="mt-2 text-3xl font-semibold tracking-tight"><?= $view->text($title) ?></h1>
-<p class="mt-4 max-w-prose text-slate-700"><?= $view->text($message) ?></p>
+<p class="mt-4 max-w-prose facet-ink-muted"><?= $view->text($message) ?></p>
 <p class="mt-8">
-    <a class="underline" href="<?= $view->url('/') ?>">Back to the home page</a>
+    <a class="facet-link underline" href="<?= $view->url('/') ?>">Back to the home page</a>
 </p>
 
 <?php if ($debug && $diagnostics !== []): ?>
 <section class="mt-12" aria-labelledby="diagnostics">
     <h2 id="diagnostics" class="text-xl font-semibold">Diagnostics</h2>
-    <p class="mt-1 text-sm text-slate-500">Shown because the application is running in debug mode.</p>
-    <ul class="mt-4 space-y-1 font-mono text-xs text-slate-700">
+    <p class="mt-1 text-sm facet-ink-subtle">Shown because the application is running in debug mode.</p>
+    <ul class="mt-4 space-y-1 font-mono text-xs facet-ink-muted">
         <?php foreach ($diagnostics as $line): ?>
         <li><?= $view->text($line) ?></li>
         <?php endforeach; ?>

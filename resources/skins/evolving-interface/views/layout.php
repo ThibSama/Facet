@@ -9,6 +9,11 @@
  * navigable document with no JavaScript involved — scripts are loaded last and
  * only decorate what the server already rendered.
  *
+ * The shell itself is split into partials (header, nav, footer) so every
+ * rendered route shares one structure rather than each page growing its own.
+ * They are included, not rendered: the renderer resolves logical views, and a
+ * partial is an implementation detail of this file.
+ *
  * @var \Facet\Html\ViewContext    $view
  * @var \Facet\Asset\AssetBundle   $assets
  * @var \Facet\Skin\SkinDefinition $skin
@@ -17,20 +22,27 @@
  * @var string                     $locale
  * @var string                     $path
  * @var string|null                $title
+ * @var \Facet\Navigation\Navigation|null $navigation
  */
 
 declare(strict_types=1);
+
+use Facet\Navigation\Navigation;
 
 $documentTitle = isset($title) && is_string($title) && $title !== ''
     ? $title . ' — ' . $appName
     : $appName;
 
-$navigation = [
-    '/' => 'Home',
-    '/projects' => 'Projects',
-    '/about' => 'About',
-    '/contact' => 'Contact',
-];
+$currentPath = isset($path) && is_string($path) ? $path : '/';
+
+// Shared data supplies the navigation for every dispatched request. The
+// fallback exists so rendering a view directly — a test, a preview — still
+// produces a complete shell instead of a header with a hole in it.
+$navigation = ($navigation ?? null) instanceof Navigation
+    ? $navigation
+    : Navigation::primary($currentPath);
+
+$navigationId = 'facet-primary-nav';
 
 ?>
 <!doctype html>
@@ -38,30 +50,20 @@ $navigation = [
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
     <title><?= $view->text($documentTitle) ?></title>
+    <?php require __DIR__ . '/partials/theme-bootstrap.php'; ?>
     <?php foreach ($assets->styles() as $style): ?>
     <link rel="stylesheet" href="<?= $view->url($style) ?>">
     <?php endforeach; ?>
 </head>
-<body class="min-h-screen bg-white text-slate-900 antialiased">
-    <a class="sr-only focus:not-sr-only" href="#main">Skip to content</a>
-    <header class="border-b border-slate-200">
-        <nav class="mx-auto flex max-w-3xl flex-wrap gap-4 px-6 py-4 text-sm" aria-label="Primary">
-            <?php foreach ($navigation as $href => $label): ?>
-            <a
-                class="hover:underline"
-                href="<?= $view->url($href) ?>"
-                <?= $view->attributes(['aria-current' => $path === $href ? 'page' : null]) ?>
-            ><?= $view->text($label) ?></a>
-            <?php endforeach; ?>
-        </nav>
-    </header>
-    <main id="main" class="mx-auto max-w-3xl px-6 py-16">
+<body class="facet-body">
+    <a class="facet-skip-link" href="#main">Skip to content</a>
+    <?php require __DIR__ . '/partials/header.php'; ?>
+    <main id="main" class="facet-main facet-shell" tabindex="-1">
         <?= $view->raw($content) ?>
     </main>
-    <footer class="mx-auto max-w-3xl px-6 py-12 text-sm text-slate-500">
-        <p><?= $view->text($appName) ?></p>
-    </footer>
+    <?php require __DIR__ . '/partials/footer.php'; ?>
     <?php foreach ($assets->scripts() as $script): ?>
     <script type="module" src="<?= $view->url($script) ?>"></script>
     <?php endforeach; ?>

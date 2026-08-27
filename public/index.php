@@ -9,6 +9,29 @@ use Facet\Http\ResponseEmitter;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
+// PHP's built-in server hands *every* request to this router script, static
+// files included. A real web server answers those from disk before PHP is ever
+// involved, so returning false here — which tells the built-in server to serve
+// the file itself — is what makes `php -S -t public public/index.php` behave
+// like the deployment target instead of 404ing the build output. It is scoped
+// to that SAPI, so nothing about production dispatch changes.
+if (PHP_SAPI === 'cli-server') {
+    $requested = parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
+    $candidate = is_string($requested) && $requested !== '/'
+        ? realpath(__DIR__ . '/' . ltrim(rawurldecode($requested), '/'))
+        : false;
+
+    // Inside the document root, a real file, and not this script: anything
+    // else stays the application's problem.
+    if ($candidate !== false
+        && is_file($candidate)
+        && str_starts_with($candidate, __DIR__ . DIRECTORY_SEPARATOR)
+        && $candidate !== __FILE__
+    ) {
+        return false;
+    }
+}
+
 $basePath = dirname(__DIR__);
 $config = Config::fromEnvironment($basePath);
 

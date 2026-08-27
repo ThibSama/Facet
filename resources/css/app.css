@@ -3,12 +3,411 @@
 
 /*
  * Facet base stylesheet.
- * Visual design, theming and skins are deliberately out of scope at this
- * checkpoint: this file only proves the Tailwind v4 pipeline is wired.
+ *
+ * Two things live here and nothing else: the *structural* shell tokens, and
+ * the shell components that consume them. The visual identity — type scale,
+ * palette, motion, the design system proper — is Phase 4 work; every value
+ * below is a neutral placeholder chosen so that swapping it later is a
+ * one-line edit rather than a rewrite. What is meant to survive is the token
+ * *names* and the rule that no shell component ever hard-codes a colour.
+ *
+ * Theming works without JavaScript. `:root` carries the light values, a
+ * `prefers-color-scheme: dark` block overrides them, and the `[data-theme]`
+ * attribute — set before first paint by the shell's inline bootstrap — wins
+ * over both so an explicit choice beats the system one in either direction.
+ * The `:not([data-theme='light'])` guard on the media query is what makes
+ * "force light on a dark system" actually work.
  */
 
 @layer base {
+  :root {
+    color-scheme: light;
+
+    --facet-surface: #ffffff;
+    --facet-surface-raised: #f4f5f7;
+    --facet-ink: #16181d;
+    --facet-ink-muted: #454b56;
+    --facet-ink-subtle: #5f6672;
+    --facet-border: #d7dae0;
+    --facet-border-strong: #767c88;
+    --facet-accent: #1b4dd1;
+    --facet-accent-ink: #ffffff;
+    --facet-focus: #1b4dd1;
+
+    --facet-shell-max: 48rem;
+    --facet-shell-gutter: clamp(1rem, 4vw, 1.5rem);
+    --facet-nav-breakpoint: 48em;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      color-scheme: dark;
+
+      --facet-surface: #101318;
+      --facet-surface-raised: #191d24;
+      --facet-ink: #e9ebef;
+      --facet-ink-muted: #c0c6d0;
+      --facet-ink-subtle: #9aa2b0;
+      --facet-border: #2c323b;
+      --facet-border-strong: #79818f;
+      --facet-accent: #93b4ff;
+      --facet-accent-ink: #101318;
+      --facet-focus: #93b4ff;
+    }
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+
+    --facet-surface: #101318;
+    --facet-surface-raised: #191d24;
+    --facet-ink: #e9ebef;
+    --facet-ink-muted: #c0c6d0;
+    --facet-ink-subtle: #9aa2b0;
+    --facet-border: #2c323b;
+    --facet-border-strong: #79818f;
+    --facet-accent: #93b4ff;
+    --facet-accent-ink: #101318;
+    --facet-focus: #93b4ff;
+  }
+
+  :root[data-theme='light'] {
+    color-scheme: light;
+
+    --facet-surface: #ffffff;
+    --facet-surface-raised: #f4f5f7;
+    --facet-ink: #16181d;
+    --facet-ink-muted: #454b56;
+    --facet-ink-subtle: #5f6672;
+    --facet-border: #d7dae0;
+    --facet-border-strong: #767c88;
+    --facet-accent: #1b4dd1;
+    --facet-accent-ink: #ffffff;
+    --facet-focus: #1b4dd1;
+  }
+
   html {
     -webkit-text-size-adjust: 100%;
+  }
+
+  /*
+   * Nothing may push the page wider than the viewport. These four rules are
+   * the whole no-horizontal-scroll contract at 320px: fluid gutters instead
+   * of fixed padding, media that shrinks, long words that break, and wide
+   * content that scrolls inside itself rather than dragging the document.
+   */
+  body {
+    min-height: 100vh;
+    margin: 0;
+    background-color: var(--facet-surface);
+    color: var(--facet-ink);
+    overflow-wrap: break-word;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  img,
+  svg,
+  video,
+  canvas,
+  iframe {
+    max-width: 100%;
+    height: auto;
+  }
+
+  pre,
+  table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* Every interactive element keeps a visible focus ring in both themes. */
+  :where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--facet-focus);
+    outline-offset: 2px;
+    border-radius: 0.125rem;
+  }
+
+  /* The routed target of the skip link: focusable, but never ringed as a control. */
+  main:focus {
+    outline: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* ---- structural helpers -------------------------------------------- */
+
+  .facet-shell {
+    width: 100%;
+    max-width: var(--facet-shell-max);
+    margin-inline: auto;
+    padding-inline: var(--facet-shell-gutter);
+  }
+
+  .facet-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .facet-main {
+    flex: 1 1 auto;
+    padding-block: clamp(2rem, 6vw, 4rem);
+  }
+
+  .facet-ink {
+    color: var(--facet-ink);
+  }
+
+  .facet-ink-muted {
+    color: var(--facet-ink-muted);
+  }
+
+  .facet-ink-subtle {
+    color: var(--facet-ink-subtle);
+  }
+
+  .facet-border {
+    border-color: var(--facet-border);
+  }
+
+  .facet-surface-raised {
+    background-color: var(--facet-surface-raised);
+  }
+
+  .facet-link {
+    color: var(--facet-accent);
+  }
+
+  .facet-button {
+    background-color: var(--facet-accent);
+    color: var(--facet-accent-ink);
+  }
+
+  .facet-field {
+    background-color: var(--facet-surface);
+    color: var(--facet-ink);
+    border-color: var(--facet-border-strong);
+  }
+
+  /* ---- skip link ------------------------------------------------------ */
+
+  /*
+   * Moved out of view rather than hidden: `display: none` and
+   * `visibility: hidden` both remove it from the tab order, which defeats
+   * the point of a skip link.
+   */
+  .facet-skip-link {
+    position: absolute;
+    top: 0;
+    left: var(--facet-shell-gutter);
+    z-index: 100;
+    padding: 0.625rem 1rem;
+    background-color: var(--facet-surface);
+    color: var(--facet-ink);
+    border: 1px solid var(--facet-border-strong);
+    border-radius: 0 0 0.375rem 0.375rem;
+    transform: translateY(-120%);
+    transition: transform 120ms ease-out;
+  }
+
+  .facet-skip-link:focus {
+    transform: translateY(0);
+  }
+
+  /* ---- header --------------------------------------------------------- */
+
+  .facet-header {
+    border-bottom: 1px solid var(--facet-border);
+    background-color: var(--facet-surface);
+  }
+
+  .facet-header__inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    padding-block: 0.875rem;
+  }
+
+  .facet-brand {
+    margin-inline-end: auto;
+    font-weight: 600;
+    color: var(--facet-ink);
+    text-decoration: none;
+  }
+
+  /* ---- navigation ----------------------------------------------------- */
+
+  .facet-nav__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .facet-nav__link {
+    display: inline-block;
+    /* A 44px-tall target: the navigation is operable by touch, not by hover. */
+    padding: 0.625rem 0.25rem;
+    color: var(--facet-ink-muted);
+    text-decoration: none;
+  }
+
+  .facet-nav__link:hover,
+  .facet-nav__link:focus-visible {
+    color: var(--facet-ink);
+    text-decoration: underline;
+  }
+
+  /*
+   * The current section is marked by more than colour: the underline and
+   * weight carry the same information for anyone who cannot see the hue.
+   */
+  .facet-nav__link[aria-current='page'] {
+    color: var(--facet-ink);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 0.35em;
+  }
+
+  /* ---- enhanced controls ---------------------------------------------- */
+
+  .facet-nav-toggle,
+  .facet-theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.375rem 0.75rem;
+    background-color: var(--facet-surface);
+    color: var(--facet-ink);
+    border: 1px solid var(--facet-border-strong);
+    border-radius: 0.375rem;
+    font: inherit;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+
+  /* `hidden` must win over the flex display above, or the no-JS shell would
+     show two controls that do nothing. */
+  .facet-nav-toggle[hidden],
+  .facet-theme-toggle[hidden] {
+    display: none;
+  }
+
+  .facet-nav-toggle__glyph {
+    width: 1rem;
+    height: 0.125rem;
+    background-color: currentColor;
+    box-shadow: 0 -0.3125rem 0 currentColor, 0 0.3125rem 0 currentColor;
+  }
+
+  .facet-theme-toggle__glyph {
+    width: 0.75rem;
+    height: 0.75rem;
+    border: 0.125rem solid currentColor;
+    border-radius: 50%;
+    background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+  }
+
+  /*
+   * Enhancement, expressed entirely as state on the header. Without the
+   * runtime the attribute is absent, every rule below is inert, and the
+   * navigation is a plain visible list — which is exactly the no-JS document
+   * the server sent.
+   */
+  @media (max-width: 47.99em) {
+    [data-facet-header][data-facet-nav-enhanced] .facet-nav {
+      display: none;
+    }
+
+    [data-facet-header][data-facet-nav-enhanced][data-facet-nav-open='true'] .facet-nav {
+      display: block;
+      flex-basis: 100%;
+      padding-block-end: 0.5rem;
+    }
+
+    [data-facet-header][data-facet-nav-enhanced] .facet-nav__list {
+      flex-direction: column;
+      gap: 0;
+    }
+
+    [data-facet-header][data-facet-nav-enhanced] .facet-nav__item + .facet-nav__item {
+      border-top: 1px solid var(--facet-border);
+    }
+
+    [data-facet-header][data-facet-nav-enhanced] .facet-nav__link {
+      display: block;
+      padding-inline: 0;
+    }
+  }
+
+  /* Above the breakpoint the navigation is always shown, so the control that
+     collapses it has nothing to say and is removed from the page entirely. */
+  @media (min-width: 48em) {
+    [data-facet-header] .facet-nav-toggle {
+      display: none;
+    }
+  }
+
+  /* ---- footer --------------------------------------------------------- */
+
+  .facet-footer {
+    border-top: 1px solid var(--facet-border);
+    background-color: var(--facet-surface-raised);
+    color: var(--facet-ink-subtle);
+    font-size: 0.875rem;
+  }
+
+  .facet-footer__inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1.5rem;
+    padding-block: 1.5rem;
+  }
+
+  .facet-footer__name {
+    margin: 0;
+  }
+
+  .facet-footer__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .facet-footer__link {
+    display: inline-block;
+    padding-block: 0.5rem;
+    color: var(--facet-ink-subtle);
+  }
+
+  .facet-footer__link:hover,
+  .facet-footer__link:focus-visible {
+    color: var(--facet-ink);
+  }
+
+  .facet-footer__link[aria-current='page'] {
+    color: var(--facet-ink);
+    font-weight: 600;
   }
 }

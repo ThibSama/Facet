@@ -21,12 +21,12 @@ ob_start();
     <?php foreach ($projects as $project): ?>
     <li>
         <h2 class="font-medium">
-            <a class="hover:underline" href="<?= $view->url('/projects/' . $project->slug()) ?>">
+            <a class="facet-link hover:underline" href="<?= $view->url('/projects/' . $project->slug()) ?>">
                 <?= $view->text($project->name()) ?>
             </a>
         </h2>
-        <p class="text-slate-600"><?= $view->text($project->summary()) ?></p>
-        <p class="mt-1 text-sm text-slate-500"><?= $view->join($project->technologies()) ?></p>
+        <p class="facet-ink-muted"><?= $view->text($project->summary()) ?></p>
+        <p class="mt-1 text-sm facet-ink-subtle"><?= $view->join($project->technologies()) ?></p>
     </li>
     <?php endforeach; ?>
 </ul>

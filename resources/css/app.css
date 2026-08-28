@@ -201,6 +201,20 @@
     border-color: var(--facet-border-strong);
   }
 
+  .facet-field-help {
+    color: var(--facet-ink-subtle);
+  }
+
+  /*
+   * A field's error slot ships empty and stays in the document so the server
+   * can fill it later without the form changing shape. Empty, it must take up
+   * no room — hence the `:empty` collapse rather than a `hidden` attribute
+   * something would have to remember to remove.
+   */
+  .facet-field-error:empty {
+    display: none;
+  }
+
   /* ---- skip link ------------------------------------------------------ */
 
   /*

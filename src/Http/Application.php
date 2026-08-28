@@ -250,7 +250,12 @@ final class Application
             throw HttpException::notImplemented('Contact submissions are not stored yet.');
         }
 
-        return $this->page($route, $selection, $shared);
+        // The canonical profile is the page's only source of an alternative
+        // way to reach the author: the view must never write an address of its
+        // own, so it is handed the links rather than left to invent them.
+        return $this->page($route, $selection, $shared + [
+            'profile' => $this->corpus()->profile(),
+        ]);
     }
 
     /**

@@ -228,7 +228,7 @@ ob_start();
 
 <section class="mt-16" aria-labelledby="get-in-touch">
     <h2 id="get-in-touch" class="text-2xl font-semibold tracking-tight">Get in touch</h2>
-    <p class="mt-3 max-w-prose facet-ink-muted">The contact page opens a direct line.</p>
+    <p class="mt-3 max-w-prose facet-ink-muted">The contact page carries a message form and my public profile links.</p>
     <p class="mt-6">
         <a class="rounded facet-button px-4 py-2" href="<?= $view->url('/contact') ?>">Contact me</a>
     </p>

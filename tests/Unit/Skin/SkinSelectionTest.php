@@ -235,7 +235,7 @@ final class SkinSelectionTest extends TestCase
 
         // The route contract is byte-identical whichever policy was used.
         self::assertSame(RouteCatalog::names(), RouteCatalog::names());
-        self::assertSame('1.1.0', RouteCatalog::VERSION);
+        self::assertSame('1.2.0', RouteCatalog::VERSION);
     }
 
     public function testPoliciesAreInterchangeableThroughTheInterface(): void

@@ -387,7 +387,7 @@ final class AuthHttpFlowTest extends TestCase
         self::assertNotSame($anonymous, $authenticated, 'The identifier must change at login');
 
         // The new one works.
-        self::assertSame(501, $this->request('GET', '/admin')['status'], 'The signed-in identifier reaches /admin');
+        self::assertSame(200, $this->request('GET', '/admin')['status'], 'The signed-in identifier reaches /admin');
 
         // The old one does not, and is not merely a different session that
         // happens to be empty — it reaches nothing protected at all.
@@ -402,9 +402,7 @@ final class AuthHttpFlowTest extends TestCase
     }
 
     /**
-     * A valid sign-in reaches the area the *stored* role names, and 501 is the
-     * proof that the guard let an authorised person through to a handler
-     * PORT-52 has not written yet.
+     * A valid sign-in reaches the area the stored role names.
      */
     public function testAValidSignInLandsOnTheAreaTheStoredRoleNames(): void
     {
@@ -417,11 +415,111 @@ final class AuthHttpFlowTest extends TestCase
             self::assertSame($expected, self::headerValue('Location', $posted['headers']), $email);
 
             // Following the redirect with the same cookie is permitted...
-            self::assertSame(501, $this->request('GET', $expected)['status'], $email);
+            self::assertSame(200, $this->request('GET', $expected)['status'], $email);
 
             // ...and the other role's area is not.
             $other = $expected === '/admin' ? '/client' : '/admin';
             self::assertSame(403, $this->request('GET', $other)['status'], $email . ' → ' . $other);
+        }
+    }
+
+    public function testAdminInboxStatusAndLogoutJourneyRunsOverRealHttp(): void
+    {
+        self::assertSame(303, $this->signIn(self::ADMIN)['status']);
+        self::assertInstanceOf(Database::class, self::$database);
+
+        self::$database->execute(
+            'INSERT INTO contact_messages (name, email, subject, message) '
+                . 'VALUES (:name, :email, :subject, :message)',
+            [
+                'name' => '<script>hostile sender</script>',
+                'email' => 'sender@example.com',
+                'subject' => '<img src=x onerror=alert(1)>',
+                'message' => '<script>alert(2)</script>',
+            ]
+        );
+        $id = self::$database->lastInsertId();
+        self::assertIsString($id);
+
+        $detail = $this->request('GET', '/admin/messages?id=' . $id);
+        self::assertSame(200, $detail['status']);
+        self::assertStringContainsString('&lt;script&gt;alert(2)&lt;/script&gt;', $detail['body']);
+        self::assertStringNotContainsString('<script>alert(2)</script>', $detail['body']);
+        self::assertStringContainsString('<meta name="robots" content="noindex, nofollow">', $detail['body']);
+
+        $xpath = Dom::of(Dom::withoutScripts($detail['body']));
+        $token = Dom::element(
+            $xpath,
+            '//form[@action="/admin/messages"]//input[@name="_token"]'
+        )->getAttribute('value');
+
+        $updated = $this->request('POST', '/admin/messages', [
+            '_token' => $token,
+            'id' => $id,
+            'status' => 'archived',
+        ]);
+        self::assertSame(303, $updated['status']);
+        self::assertSame('/admin/messages?id=' . $id, self::headerValue('Location', $updated['headers']));
+        self::assertSame(
+            'archived',
+            self::$database->selectValue('SELECT status FROM contact_messages WHERE id = :id', ['id' => $id])
+        );
+
+        $refreshed = $this->request('GET', '/admin/messages?id=' . $id);
+        self::assertSame(200, $refreshed['status']);
+        self::assertSame(
+            'archived',
+            self::$database->selectValue('SELECT status FROM contact_messages WHERE id = :id', ['id' => $id])
+        );
+
+        $logoutToken = Dom::element(
+            Dom::of(Dom::withoutScripts($refreshed['body'])),
+            '//form[@action="/logout"]//input[@name="_token"]'
+        )->getAttribute('value');
+        self::assertSame(303, $this->request('POST', '/logout', ['_token' => $logoutToken])['status']);
+        self::assertSame(303, $this->request('GET', '/admin')['status']);
+    }
+
+    public function testClientShellAndLogoutJourneyRunsOverRealHttp(): void
+    {
+        self::assertSame(303, $this->signIn(self::CLIENT)['status']);
+
+        $page = $this->request('GET', '/client');
+        self::assertSame(200, $page['status']);
+        self::assertStringContainsString(self::CLIENT, $page['body']);
+        self::assertStringContainsString('No client feature has been delivered', $page['body']);
+        self::assertStringContainsString('<meta name="robots" content="noindex, nofollow">', $page['body']);
+
+        $token = Dom::element(
+            Dom::of(Dom::withoutScripts($page['body'])),
+            '//form[@action="/logout"]//input[@name="_token"]'
+        )->getAttribute('value');
+        self::assertSame(303, $this->request('POST', '/logout', ['_token' => $token])['status']);
+        self::assertSame(303, $this->request('GET', '/client')['status']);
+    }
+
+    public function testAdminMutationDatabaseFailureIsSafeOverRealHttp(): void
+    {
+        self::assertSame(303, $this->signIn(self::ADMIN)['status']);
+        $page = $this->request('GET', '/admin');
+        $token = Dom::element(
+            Dom::of(Dom::withoutScripts($page['body'])),
+            '//form[@action="/logout"]//input[@name="_token"]'
+        )->getAttribute('value');
+
+        self::assertInstanceOf(Database::class, self::$database);
+        self::$database->executeTrusted('DROP TABLE contact_messages');
+
+        $failed = $this->request('POST', '/admin/messages', [
+            '_token' => $token,
+            'id' => '1',
+            'status' => 'read',
+        ]);
+
+        self::assertSame(500, $failed['status']);
+        self::assertNull(self::headerValue('Location', $failed['headers']));
+        foreach (['contact_messages', 'UPDATE', self::root(), 'SQLSTATE', 'DB_PASSWORD'] as $leak) {
+            self::assertStringNotContainsString($leak, $failed['body']);
         }
     }
 
@@ -465,7 +563,7 @@ final class AuthHttpFlowTest extends TestCase
     public function testAnAccountDisabledMidSessionLosesAccessImmediately(): void
     {
         self::assertSame(303, $this->signIn(self::ADMIN)['status']);
-        self::assertSame(501, $this->request('GET', '/admin')['status']);
+        self::assertSame(200, $this->request('GET', '/admin')['status']);
 
         self::assertInstanceOf(Database::class, self::$database);
         self::$database->execute('UPDATE users SET status = :s WHERE email = :e', [
@@ -485,7 +583,7 @@ final class AuthHttpFlowTest extends TestCase
     public function testAnAccountDeletedMidSessionLosesAccessImmediately(): void
     {
         self::assertSame(303, $this->signIn(self::CLIENT)['status']);
-        self::assertSame(501, $this->request('GET', '/client')['status']);
+        self::assertSame(200, $this->request('GET', '/client')['status']);
 
         self::assertInstanceOf(Database::class, self::$database);
         self::$database->execute('DELETE FROM users WHERE email = :e', ['e' => self::CLIENT]);
@@ -543,7 +641,7 @@ final class AuthHttpFlowTest extends TestCase
         self::assertSame(303, $this->signIn(self::ADMIN)['status']);
 
         self::assertSame(403, $this->request('POST', '/logout', [])['status']);
-        self::assertSame(501, $this->request('GET', '/admin')['status'], 'A refused logout must not log anyone out');
+        self::assertSame(200, $this->request('GET', '/admin')['status'], 'A refused logout must not log anyone out');
     }
 
     /**
@@ -562,7 +660,7 @@ final class AuthHttpFlowTest extends TestCase
 
         // The spent token no longer authorises a private mutation.
         self::assertSame(403, $this->request('POST', '/logout', ['_token' => $form['token']])['status']);
-        self::assertSame(501, $this->request('GET', '/admin')['status']);
+        self::assertSame(200, $this->request('GET', '/admin')['status']);
     }
 
     // ---------------------------------------------------------- the logout
@@ -629,7 +727,7 @@ final class AuthHttpFlowTest extends TestCase
 
         self::assertSame(405, $response['status']);
         self::assertSame('POST', self::headerValue('Allow', $response['headers']));
-        self::assertSame(501, $this->request('GET', '/admin')['status'], 'Still signed in');
+        self::assertSame(200, $this->request('GET', '/admin')['status'], 'Still signed in');
     }
 
     // ---------------------------------------------------------- the cookie

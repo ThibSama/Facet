@@ -19,7 +19,7 @@ final class RouteCatalog
      * Bumped whenever the route contract changes in a way consumers must react
      * to (a route added, removed, renamed, or its visibility changed).
      */
-    public const VERSION = '1.1.0';
+    public const VERSION = '1.2.0';
 
     public const HOME = 'home';
     public const PROJECTS_INDEX = 'projects.index';
@@ -182,7 +182,7 @@ final class RouteCatalog
             RouteDefinition::define(
                 self::ADMIN_MESSAGES,
                 '/admin/messages',
-                [HttpMethod::Get],
+                [HttpMethod::Get, HttpMethod::Post],
                 Visibility::Admin,
                 DataSource::MessageStore,
                 'page.admin.messages'

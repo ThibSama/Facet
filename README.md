@@ -134,7 +134,7 @@ exists.
 **Routes** are declared as data in `Facet\Routing\RouteCatalog`. Each of the
 ten canonical routes states its path, accepted methods, visibility, data source
 and a *logical* template id — never a file path. Nothing in routing knows how a
-page is rendered. The catalog carries a contract version (`1.1.0`) that is
+page is rendered. The catalog carries a contract version (`1.2.0`) that is
 bumped whenever a route is added, removed or re-scoped.
 
 | Path                | Methods    | Visibility    | Data source    |
@@ -147,7 +147,7 @@ bumped whenever a route is added, removed or re-scoped.
 | `/login`            | GET, POST  | guest         | auth session   |
 | `/logout`           | POST       | authenticated | auth session   |
 | `/admin`            | GET        | admin         | content corpus |
-| `/admin/messages`   | GET        | admin         | message store  |
+| `/admin/messages`   | GET, POST  | admin         | message store  |
 | `/client`           | GET        | client        | auth session   |
 
 Visibility is enforced centrally, between routing and dispatch — see
@@ -458,8 +458,8 @@ nothing they can do at a login form about their own role. There is deliberately
 
 **Every POST to a non-public route must carry this session's CSRF token**, and
 that rule is applied by the guard rather than by each handler, so a mutation
-added later is defended by being declared in the catalog. `/logout` exercises it
-today. (`/contact` is a *public* POST and keeps its own token check, because the
+is defended by being declared in the catalog. `/logout` and the admin message
+status mutation both exercise it. (`/contact` is a *public* POST and keeps its own token check, because the
 order in which it interleaves that check with throttling and storage is part of
 that form's design.)
 
@@ -487,10 +487,11 @@ client-supplied and is not believed until a trusted-proxy policy exists.
 This checkpoint delivers the foundation, the canonical content and routes, the
 **skin boundary**, the **MariaDB persistence foundation** — a strict PDO
 connection, ordered migrations and a CLI admin bootstrap — the defended
-**contact form**, and **authentication with central role guards**.
+**contact form**, **authentication with central role guards**, the bounded
+**admin contact inbox and status lifecycle**, and a truthful private **client
+shell**.
 
-The admin inbox and the client area's own pages, password reset, registration,
-remember-me, MFA, OAuth, SEO, the final visual design, a second skin, random
-skin selection, deployment and CI are deliberately out of scope and land in
-later packages. The routes for those areas exist and are guarded; their handlers
-answer `501` until they are built.
+Message deletion, replies, email sending, search, analytics, account management,
+client business features, password reset, registration, remember-me, MFA,
+OAuth, SEO, the final visual design, a second skin, random skin selection,
+deployment and CI remain deliberately out of scope.

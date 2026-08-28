@@ -11,6 +11,13 @@ use Facet\Asset\AssetManager;
 use Facet\Config\Config;
 use Facet\Contact\ContactMessageStore;
 use Facet\Contact\ContactMessageStoreFactory;
+use Facet\Contact\ContactInboxException;
+use Facet\Contact\ContactMessageReader;
+use Facet\Contact\ContactMessageReaderFactory;
+use Facet\Contact\ContactMessageMutationException;
+use Facet\Contact\ContactMessageStatus;
+use Facet\Contact\ContactMessageStatusUpdater;
+use Facet\Contact\ContactMessageStatusUpdaterFactory;
 use Facet\Contact\ContactStoreException;
 use Facet\Contact\ContactValidator;
 use Facet\Content\Corpus;
@@ -81,6 +88,10 @@ final class Application
 
     private ContactMessageStore $messages;
 
+    private ContactMessageReader $messageReader;
+
+    private ContactMessageStatusUpdater $messageUpdater;
+
     private ContactValidator $validator;
 
     private CsrfGuard $csrf;
@@ -107,7 +118,9 @@ final class Application
         Session $session,
         ContactMessageStore $messages,
         RateLimiter $limiter,
-        AccountRepository $accounts
+        AccountRepository $accounts,
+        ContactMessageReader $messageReader,
+        ContactMessageStatusUpdater $messageUpdater
     ) {
         $this->basePath = $basePath;
         $this->config = $config;
@@ -119,6 +132,8 @@ final class Application
         $this->errors = $errors;
         $this->session = $session;
         $this->messages = $messages;
+        $this->messageReader = $messageReader;
+        $this->messageUpdater = $messageUpdater;
         $this->limiter = $limiter;
         $this->validator = new ContactValidator();
         $this->csrf = new CsrfGuard();
@@ -145,7 +160,9 @@ final class Application
         ?Session $session = null,
         ?ContactMessageStore $messages = null,
         ?Clock $clock = null,
-        ?AccountRepository $accounts = null
+        ?AccountRepository $accounts = null,
+        ?ContactMessageReader $messageReader = null,
+        ?ContactMessageStatusUpdater $messageUpdater = null
     ): self {
         $basePath = rtrim(str_replace('\\', '/', $basePath), '/');
         $config ??= Config::fromEnvironment($basePath);
@@ -170,7 +187,12 @@ final class Application
             // With no database configured there are no accounts, so every login
             // fails generically and every session id resolves to nobody. An
             // unconfigured deployment is a public site, not an open one.
-            $accounts ?? AccountRepositoryFactory::fromConfig($config)
+            $accounts ?? AccountRepositoryFactory::fromConfig($config),
+            $messageReader ?? ContactMessageReaderFactory::fromConfig($config),
+            $messageUpdater
+                ?? ($messageReader instanceof ContactMessageStatusUpdater
+                    ? $messageReader
+                    : ContactMessageStatusUpdaterFactory::fromConfig($config))
         );
     }
 
@@ -218,6 +240,7 @@ final class Application
     {
         $skin = null;
         $assets = AssetBundle::empty();
+        $privateResponse = false;
 
         try {
             $selection = $this->selectSkin($request->query(), $request->cookies());
@@ -245,6 +268,7 @@ final class Application
             }
 
             $route = $match->route();
+            $privateResponse = $route->visibility()->requiresAuthentication();
 
             // Authorisation happens here — after routing, before dispatch, and
             // in one place. No handler below this line re-checks who is asking,
@@ -262,7 +286,8 @@ final class Application
                 $error,
                 $error->statusCode(),
                 $skin,
-                $this->sharedData($request, $skin, null, $assets),
+                $this->sharedData($request, $skin, null, $assets)
+                    + ($privateResponse ? ['noIndex' => true] : []),
                 $request
             );
         } catch (Throwable $error) {
@@ -270,16 +295,17 @@ final class Application
                 $error,
                 Response::STATUS_INTERNAL_SERVER_ERROR,
                 $skin,
-                $this->sharedData($request, $skin, null, $assets),
+                $this->sharedData($request, $skin, null, $assets)
+                    + ($privateResponse ? ['noIndex' => true] : []),
                 $request
             );
         }
     }
 
     /**
-     * Routes that have a handler at this checkpoint. Everything else in the
-     * catalog is declared but not yet built, and says so with 501 rather than
-     * pretending it does not exist.
+     * Routes that have a handler at this checkpoint. A future declared route
+     * without one still fails honestly with 501 rather than pretending it does
+     * not exist.
      *
      * @param array<string, string> $parameters
      */
@@ -313,6 +339,9 @@ final class Application
             RouteCatalog::CONTACT => $this->contact($route, $request, $selection, $shared),
             RouteCatalog::LOGIN => $this->login($route, $request, $selection, $shared),
             RouteCatalog::LOGOUT => $this->logout(),
+            RouteCatalog::ADMIN_DASHBOARD => $this->privatePage($route, $selection, $shared),
+            RouteCatalog::ADMIN_MESSAGES => $this->adminMessages($route, $request, $selection, $shared),
+            RouteCatalog::CLIENT_AREA => $this->privatePage($route, $selection, $shared),
             default => throw HttpException::notImplemented(sprintf(
                 'Route "%s" is declared but has no handler yet.',
                 $route->name()
@@ -620,6 +649,94 @@ final class Application
 
         return Response::redirect(
             RouteCatalog::get(RouteCatalog::HOME)->path(),
+            Response::STATUS_SEE_OTHER
+        );
+    }
+
+    /** @param array<string, mixed> $shared */
+    private function privatePage(RouteDefinition $route, SkinSelection $selection, array $shared): Response
+    {
+        $account = $this->authenticator->current();
+
+        if ($account === null) {
+            throw HttpException::internal('A private handler had no resolved account.');
+        }
+
+        return $this->page($route, $selection, $shared + [
+            'accountEmail' => $account->email(),
+            'csrfField' => CsrfGuard::FIELD,
+            'csrfToken' => $this->csrf->token($this->session),
+            'noIndex' => true,
+        ]);
+    }
+
+    /** @param array<string, mixed> $shared */
+    private function adminMessages(
+        RouteDefinition $route,
+        Request $request,
+        SkinSelection $selection,
+        array $shared
+    ): Response {
+        if ($request->isMethod(HttpMethod::Post)) {
+            return $this->updateAdminMessage($request);
+        }
+
+        $rawId = $request->queryParam('id');
+        $selected = null;
+
+        if ($rawId !== null) {
+            if (!ctype_digit($rawId) || $rawId === '0' || strlen($rawId) > 10 || (int) $rawId > 2147483647) {
+                throw HttpException::badRequest('The message id is malformed.');
+            }
+
+            $selected = $this->messageReader->find((int) $rawId);
+
+            if ($selected === null) {
+                throw HttpException::notFound('No contact message has that id.');
+            }
+        }
+
+        try {
+            $messages = $this->messageReader->newest(50);
+        } catch (ContactInboxException $error) {
+            throw HttpException::internal('The admin inbox could not be read.', $error);
+        }
+
+        return $this->privatePage($route, $selection, $shared + [
+            'messages' => $messages,
+            'selectedMessage' => $selected,
+        ]);
+    }
+
+    private function updateAdminMessage(Request $request): Response
+    {
+        $rawId = $request->bodyParam('id');
+
+        if ($rawId === null || !ctype_digit($rawId) || $rawId === '0'
+            || strlen($rawId) > 10 || (int) $rawId > 2147483647) {
+            throw HttpException::badRequest('The message id is malformed.');
+        }
+
+        $status = ContactMessageStatus::tryFrom($request->bodyParam('status', '') ?? '');
+
+        if ($status === null) {
+            throw HttpException::unprocessable('The message status is invalid.');
+        }
+
+        try {
+            $exists = $this->messageUpdater->updateStatus((int) $rawId, $status);
+        } catch (ContactMessageMutationException $error) {
+            throw HttpException::internal('The message status could not be updated.', $error);
+        }
+
+        if (!$exists) {
+            throw HttpException::notFound('No contact message has that id.');
+        }
+
+        $this->csrf->rotate($this->session);
+
+        return Response::redirect(
+            RouteCatalog::get(RouteCatalog::ADMIN_MESSAGES)->path() . '?id=' . $rawId,
             Response::STATUS_SEE_OTHER
         );
     }

@@ -28,7 +28,7 @@ use Facet\Database\DatabaseException;
  * answering them requires, and holding more would be collecting personal data
  * for no stated purpose.
  */
-final class ContactMessageRepository implements ContactMessageStore
+final class ContactMessageRepository implements ContactMessageStore, ContactMessageReader, ContactMessageStatusUpdater
 {
     /**
      * The insert, written out once so the column list and the placeholder list
@@ -36,6 +36,16 @@ final class ContactMessageRepository implements ContactMessageStore
      */
     private const INSERT = 'INSERT INTO contact_messages (name, email, subject, message) '
         . 'VALUES (:name, :email, :subject, :message)';
+
+    private const NEWEST = 'SELECT id, name, email, subject, message, status, created_at '
+        . 'FROM contact_messages ORDER BY created_at DESC, id DESC LIMIT 100';
+
+    private const FIND = 'SELECT id, name, email, subject, message, status, created_at '
+        . 'FROM contact_messages WHERE id = :id';
+
+    private const UPDATE_STATUS = 'UPDATE contact_messages SET status = :status WHERE id = :id';
+
+    private const EXISTS = 'SELECT id FROM contact_messages WHERE id = :id';
 
     private Database $database;
 
@@ -62,5 +72,69 @@ final class ContactMessageRepository implements ContactMessageStore
         }
 
         return (int) $id;
+    }
+
+    public function newest(int $limit): array
+    {
+        if ($limit < 1 || $limit > 100) {
+            throw new \InvalidArgumentException('The inbox limit must be between 1 and 100.');
+        }
+
+        try {
+            $rows = $this->database->select(self::NEWEST);
+        } catch (DatabaseException $error) {
+            throw ContactInboxException::readFailed($error);
+        }
+
+        return array_map(self::hydrate(...), array_slice($rows, 0, $limit));
+    }
+
+    public function find(int $id): ?ContactMessage
+    {
+        try {
+            $row = $this->database->selectOne(self::FIND, ['id' => $id]);
+        } catch (DatabaseException $error) {
+            throw ContactInboxException::readFailed($error);
+        }
+
+        return $row === null ? null : self::hydrate($row);
+    }
+
+    public function updateStatus(int $id, ContactMessageStatus $status): bool
+    {
+        try {
+            $changed = $this->database->execute(self::UPDATE_STATUS, [
+                'status' => $status->value,
+                'id' => $id,
+            ]);
+
+            if ($changed === 1) {
+                return true;
+            }
+
+            return $this->database->selectValue(self::EXISTS, ['id' => $id]) !== null;
+        } catch (DatabaseException $error) {
+            throw ContactMessageMutationException::updateFailed($error);
+        }
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function hydrate(array $row): ContactMessage
+    {
+        $status = ContactMessageStatus::tryFrom((string) ($row['status'] ?? ''));
+
+        if ($status === null) {
+            throw ContactInboxException::readFailed();
+        }
+
+        return new ContactMessage(
+            (int) ($row['id'] ?? 0),
+            (string) ($row['name'] ?? ''),
+            (string) ($row['email'] ?? ''),
+            (string) ($row['subject'] ?? ''),
+            (string) ($row['message'] ?? ''),
+            $status,
+            (string) ($row['created_at'] ?? '')
+        );
     }
 }

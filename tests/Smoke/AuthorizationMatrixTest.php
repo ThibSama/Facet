@@ -18,6 +18,7 @@ use Facet\Routing\Visibility;
 use Facet\Security\CsrfGuard;
 use Facet\Session\ArraySession;
 use Facet\Tests\Support\InMemoryAccountRepository;
+use Facet\Tests\Support\RecordingContactMessageReader;
 use FilesystemIterator;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -72,7 +73,8 @@ final class AuthorizationMatrixTest extends TestCase
             $this->session,
             null,
             null,
-            $this->accounts
+            $this->accounts,
+            new RecordingContactMessageReader()
         );
     }
 
@@ -116,11 +118,8 @@ final class AuthorizationMatrixTest extends TestCase
     /**
      * Every protected route against every kind of visitor.
      *
-     * `501` is a pass for an authorised visitor and is the point of the case:
-     * PORT-52 has not built the admin or client pages, and the guard must let
-     * an authorised person through to that honest answer while still refusing
-     * everyone else. Authorisation that only works once a handler exists is
-     * authorisation written in the wrong place.
+     * An authorised visitor reaches a real private shell while every other
+     * role is stopped before dispatch.
      *
      * @return array<string, array{string, string, string, int, string|null}>
      */
@@ -135,15 +134,15 @@ final class AuthorizationMatrixTest extends TestCase
             'anonymous → /client' => ['anonymous', 'GET', '/client', 303, $login],
             'anonymous → /login' => ['anonymous', 'GET', $login, 200, null],
 
-            // Admin: their own area is theirs (501 = declared, unbuilt), the
+            // Admin: their own area is theirs, the
             // client area is not, and the login form redirects them home.
-            'admin → /admin' => ['admin', 'GET', '/admin', 501, null],
-            'admin → /admin/messages' => ['admin', 'GET', '/admin/messages', 501, null],
+            'admin → /admin' => ['admin', 'GET', '/admin', 200, null],
+            'admin → /admin/messages' => ['admin', 'GET', '/admin/messages', 200, null],
             'admin → /client' => ['admin', 'GET', '/client', 403, null],
             'admin → /login' => ['admin', 'GET', $login, 303, '/admin'],
 
             // Client: the mirror image.
-            'client → /client' => ['client', 'GET', '/client', 501, null],
+            'client → /client' => ['client', 'GET', '/client', 200, null],
             'client → /admin' => ['client', 'GET', '/admin', 403, null],
             'client → /admin/messages' => ['client', 'GET', '/admin/messages', 403, null],
             'client → /login' => ['client', 'GET', $login, 303, '/client'],
@@ -248,10 +247,8 @@ final class AuthorizationMatrixTest extends TestCase
     // ---------------------------------------------------------- mutations
 
     /**
-     * Requirement 12: a private POST needs this session's token, and the check
-     * is central rather than in the handler. `/logout` is what exercises it
-     * today; the rule is written against visibility, so a later admin mutation
-     * is covered by being declared, not by its author remembering.
+     * A private POST needs this session's token, and the check is central
+     * rather than in either the logout or admin mutation handler.
      */
     public function testAPrivatePostWithoutTheSessionTokenIsRefused(): void
     {

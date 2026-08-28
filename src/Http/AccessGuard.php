@@ -24,9 +24,7 @@ use Facet\Session\Session;
  * the handler has already run, the data has already been read and the only
  * thing a hidden section hides is the pixels. Here, a route's declared
  * visibility is enforced whether or not anyone has written its handler yet —
- * which is why an authorised administrator reaching a still-unbuilt admin page
- * gets an honest 501, and an anonymous visitor reaching the same URL never
- * learns that it exists.
+ * which is why an anonymous visitor never reaches even a private page's data.
  *
  * Two rules are applied, in this order:
  *
@@ -37,8 +35,8 @@ use Facet\Session\Session;
  * 2. **Intent.** Every POST to a non-public route must carry this session's
  *    CSRF token. It is enforced centrally rather than per handler, so a future
  *    admin mutation is defended by existing in the catalog rather than by its
- *    author remembering. `/logout` is the one route exercising it today, and it
- *    proves the mechanism rather than owning it.
+ *    author remembering. Logout and admin message status changes both pass
+ *    through this same boundary.
  *
  * Access comes first: an anonymous POST to a protected route is answered as
  * unauthenticated rather than as a token failure, because that is what it is.

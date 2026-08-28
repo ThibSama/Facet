@@ -51,6 +51,9 @@ $navigationId = 'facet-primary-nav';
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
+    <?php if (($noIndex ?? false) === true): ?>
+    <meta name="robots" content="noindex, nofollow">
+    <?php endif; ?>
     <title><?= $view->text($documentTitle) ?></title>
     <?php require __DIR__ . '/partials/theme-bootstrap.php'; ?>
     <?php foreach ($assets->styles() as $style): ?>

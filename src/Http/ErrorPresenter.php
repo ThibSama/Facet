@@ -54,6 +54,10 @@ final class ErrorPresenter
             'title' => 'Method not allowed',
             'message' => 'This page does not accept that kind of request.',
         ],
+        422 => [
+            'title' => 'Invalid values',
+            'message' => 'One or more submitted values are invalid.',
+        ],
         501 => [
             'title' => 'Not available yet',
             'message' => 'This page is not available yet.',

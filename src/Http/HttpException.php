@@ -60,6 +60,11 @@ final class HttpException extends RuntimeException
         return new self(Response::STATUS_BAD_REQUEST, $message);
     }
 
+    public static function unprocessable(string $message = 'The request values are invalid.'): self
+    {
+        return new self(Response::STATUS_UNPROCESSABLE_CONTENT, $message);
+    }
+
     public static function notImplemented(string $message = 'This route is declared but not yet implemented.'): self
     {
         return new self(Response::STATUS_NOT_IMPLEMENTED, $message);

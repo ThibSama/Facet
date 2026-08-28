@@ -59,7 +59,7 @@ final class RouteCatalogTest extends TestCase
                 Visibility::Admin, DataSource::ContentCorpus, 'page.admin.dashboard',
             ],
             '/admin/messages' => [
-                RouteCatalog::ADMIN_MESSAGES, '/admin/messages', ['GET'],
+                RouteCatalog::ADMIN_MESSAGES, '/admin/messages', ['GET', 'POST'],
                 Visibility::Admin, DataSource::MessageStore, 'page.admin.messages',
             ],
             '/client' => [
@@ -201,7 +201,7 @@ final class RouteCatalogTest extends TestCase
      * membership: a new POST route is a change to the security surface, and it
      * should not be possible to add one without this test noticing.
      */
-    public function testOnlyContactLoginAndLogoutAcceptPost(): void
+    public function testOnlyDeclaredMutationRoutesAcceptPost(): void
     {
         $posting = [];
 
@@ -213,7 +213,12 @@ final class RouteCatalogTest extends TestCase
 
         sort($posting);
 
-        self::assertSame([RouteCatalog::CONTACT, RouteCatalog::LOGIN, RouteCatalog::LOGOUT], $posting);
+        self::assertSame([
+            RouteCatalog::ADMIN_MESSAGES,
+            RouteCatalog::CONTACT,
+            RouteCatalog::LOGIN,
+            RouteCatalog::LOGOUT,
+        ], $posting);
     }
 
     public function testProjectShowIsTheOnlyDynamicRoute(): void
@@ -239,12 +244,13 @@ final class RouteCatalogTest extends TestCase
 
     /**
      * The contract version is bumped when consumers must react — here, a route
-     * was added and another's visibility narrowed.
+     * was added, another's visibility narrowed, and the admin inbox gained its
+     * status-mutation method.
      */
     public function testCatalogDeclaresAContractVersion(): void
     {
         self::assertMatchesRegularExpression('/^\d+\.\d+\.\d+$/', RouteCatalog::VERSION);
-        self::assertSame('1.1.0', RouteCatalog::VERSION);
+        self::assertSame('1.2.0', RouteCatalog::VERSION);
     }
 
     public function testCatalogIsIndependentOfRendering(): void

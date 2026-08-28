@@ -86,6 +86,14 @@ final class SignatureHeroTest extends TestCase
         return $css;
     }
 
+    private static function skinRuntime(): string
+    {
+        $ts = file_get_contents(self::root() . '/' . self::SKIN_ENTRY);
+        self::assertIsString($ts);
+
+        return $ts;
+    }
+
     private static function template(): string
     {
         $php = file_get_contents(
@@ -231,6 +239,88 @@ final class SignatureHeroTest extends TestCase
                 0,
                 Dom::query($xpath, '//*[@data-facet-hero-visual]'),
                 $route . ' must not carry a hero slot'
+            );
+        }
+    }
+
+    // ------------------------------------------------------- hero lifecycle
+
+    /**
+     * A supplement to the runtime proof, not a substitute for it.
+     *
+     * What actually settles this is `tools/firefox-audit.py --hero-lifecycle`,
+     * which mounts the built module in a real Firefox and counts every
+     * listener registered and removed. Source text cannot count listeners. It
+     * can, however, catch the one shape that made the leak possible in the
+     * first place — a handler passed as an anonymous argument, whose reference
+     * is gone the moment it is registered and which therefore can never be
+     * removed — and that is what is asserted here.
+     */
+    public function testTheRuntimeRetainsEveryListenerReferenceItMustRemove(): void
+    {
+        $runtime = self::skinRuntime();
+
+        self::assertMatchesRegularExpression(
+            '/const motion = [^;]*window\.matchMedia\(REDUCED_MOTION\)[^;]*;/',
+            $runtime,
+            'The reduced-motion query must be held, not re-queried at teardown'
+        );
+        self::assertStringContainsString(
+            'const onMotionChange = (event: MediaQueryListEvent): void =>',
+            $runtime,
+            'The change handler must be a named reference, or it cannot be removed'
+        );
+
+        foreach (
+            [
+                "window.removeEventListener('pagehide', release);",
+                "motion?.removeEventListener('change', onMotionChange);",
+            ] as $removal
+        ) {
+            self::assertStringContainsString(
+                $removal,
+                $runtime,
+                'Release must remove every listener it owns'
+            );
+        }
+
+        self::assertDoesNotMatchRegularExpression(
+            "/addEventListener\\(\\s*'change',\\s*\\(/",
+            $runtime,
+            'An inline change handler is a listener that can never be unregistered'
+        );
+
+        // One destroy, whichever signal arrives and however often it repeats.
+        self::assertStringContainsString('let released = false;', $runtime);
+        self::assertMatchesRegularExpression(
+            '/const release = \(\): void => \{\s*if \(released\) \{\s*return;/',
+            $runtime,
+            'The release path must be idempotent'
+        );
+        self::assertSame(
+            1,
+            substr_count($runtime, 'handle.destroy()'),
+            'There is exactly one teardown path'
+        );
+    }
+
+    /**
+     * The gate itself has to exist, because the assertion above is deliberately
+     * the weaker half of the evidence.
+     */
+    public function testTheBrowserHarnessCarriesTheLifecycleGate(): void
+    {
+        $harness = file_get_contents(self::root() . '/tools/firefox-audit.py');
+        self::assertIsString($harness);
+
+        self::assertStringContainsString('--hero-lifecycle', $harness);
+        self::assertStringContainsString('def hero_lifecycle(', $harness);
+
+        foreach (['pagehideListeners', 'motionListeners', 'destroys'] as $measure) {
+            self::assertStringContainsString(
+                $measure,
+                $harness,
+                'The harness must measure listener and destroy counts, not source text'
             );
         }
     }

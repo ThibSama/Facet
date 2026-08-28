@@ -115,22 +115,39 @@ async function enhanceHero(root: Document = document): Promise<void> {
      * fires `pagehide` where `unload` would have cost the page its cache
      * entry. Turning reduced motion on mid-visit is a request to stop, so it
      * is honoured the same way.
+     *
+     * Both signals converge on one `release`, and every reference it needs to
+     * unregister itself is held here for the lifetime of this mounted hero:
+     * the query list is queried once, and the change handler is a named
+     * function rather than an anonymous argument, because a listener whose
+     * reference is not retained cannot be removed. `released` makes the path
+     * idempotent — whichever signal arrives first, and however often either
+     * repeats, the effect is destroyed exactly once.
      */
+    const motion = typeof window.matchMedia === 'function' ? window.matchMedia(REDUCED_MOTION) : null;
+
+    let released = false;
+
+    const onMotionChange = (event: MediaQueryListEvent): void => {
+      if (event.matches) {
+        release();
+      }
+    };
+
     const release = (): void => {
+      if (released) {
+        return;
+      }
+
+      released = true;
+      window.removeEventListener('pagehide', release);
+      motion?.removeEventListener('change', onMotionChange);
       handle.destroy();
       setState(slot, 'static');
     };
 
-    window.addEventListener('pagehide', release, { once: true });
-
-    if (typeof window.matchMedia === 'function') {
-      window.matchMedia(REDUCED_MOTION).addEventListener('change', (event) => {
-        if (event.matches) {
-          window.removeEventListener('pagehide', release);
-          release();
-        }
-      });
-    }
+    window.addEventListener('pagehide', release);
+    motion?.addEventListener('change', onMotionChange);
   } catch {
     setState(slot, 'static');
   }

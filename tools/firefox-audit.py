@@ -39,6 +39,208 @@ def element_id(session: str, selector: str) -> str:
     return value["element-6066-11e4-a52e-4f735466cecf"]
 
 
+HERO_LIFECYCLE = """
+/*
+ * Runtime proof of the hero's lifecycle ownership, run against the real
+ * served document and the real built modules.
+ *
+ * The page is re-parsed inside a same-origin iframe that is instrumented
+ * *before* a single one of its scripts exists: an about:blank frame inherits
+ * this origin, so its window can be patched and only then written to. That is
+ * what makes the counts below exact rather than approximate — every listener
+ * the skin registers, and every WebGL program it deletes, passes through a
+ * counter installed before the module ran.
+ */
+const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
+const [html, phase] = [arguments[0], arguments[1]];
+
+return (async () => {
+
+const frame = document.createElement('iframe');
+frame.style.cssText = 'display:block;border:0;width:1200px;height:800px';
+document.body.replaceChildren(frame);
+
+const view = frame.contentWindow;
+const doc = frame.contentDocument;
+
+/* Listeners are tracked by identity: a listener registered twice is two. */
+const registered = {window: [], motion: []};
+const track = (book, type, fn, added) => {
+    if (added) {
+        book.push([type, fn]);
+        return;
+    }
+    const at = book.findIndex((entry) => entry[0] === type && entry[1] === fn);
+    if (at >= 0) book.splice(at, 1);
+};
+const count = (book, type) => book.filter((entry) => entry[0] === type).length;
+
+const windowAdd = view.addEventListener.bind(view);
+const windowRemove = view.removeEventListener.bind(view);
+view.addEventListener = function (type, fn, opts) {
+    track(registered.window, type, fn, true);
+    /*
+     * A `once` listener removes itself without going through
+     * removeEventListener, so the book is corrected from the dispatch
+     * instead. Otherwise a correct teardown would read as a leak.
+     */
+    if (opts !== null && typeof opts === 'object' && opts.once) {
+        windowAdd(type, () => track(registered.window, type, fn, false), {once: true});
+    }
+    return windowAdd(type, fn, opts);
+};
+view.removeEventListener = function (type, fn, opts) {
+    track(registered.window, type, fn, false);
+    return windowRemove(type, fn, opts);
+};
+
+const queryAdd = view.MediaQueryList.prototype.addEventListener;
+const queryRemove = view.MediaQueryList.prototype.removeEventListener;
+view.MediaQueryList.prototype.addEventListener = function (type, fn, opts) {
+    if (this.media === REDUCED_MOTION) track(registered.motion, type, fn, true);
+    return queryAdd.call(this, type, fn, opts);
+};
+view.MediaQueryList.prototype.removeEventListener = function (type, fn, opts) {
+    if (this.media === REDUCED_MOTION) track(registered.motion, type, fn, false);
+    return queryRemove.call(this, type, fn, opts);
+};
+
+/* The query list the skin retains, so a change can be delivered to it. */
+let motionQuery = null;
+const matchMedia = view.matchMedia.bind(view);
+view.matchMedia = (query) => {
+    const result = matchMedia(query);
+    if (query === REDUCED_MOTION) motionQuery = result;
+    return result;
+};
+
+/* One deleteProgram call is one destroy: the counter for idempotence. */
+let destroys = 0;
+const deleteProgram = view.WebGL2RenderingContext.prototype.deleteProgram;
+view.WebGL2RenderingContext.prototype.deleteProgram = function (program) {
+    destroys += 1;
+    return deleteProgram.call(this, program);
+};
+
+const slot = () => doc.querySelector('[data-facet-hero-visual]');
+const state = () => {
+    const node = slot();
+    return {
+        hero: node ? node.dataset.facetHero || null : null,
+        canvases: doc.querySelectorAll('[data-facet-hero-visual] canvas').length,
+        pagehideListeners: count(registered.window, 'pagehide'),
+        motionListeners: count(registered.motion, 'change'),
+        destroys,
+        fallback: node !== null && node.getAttribute('aria-hidden') === 'true',
+    };
+};
+
+const settle = () => new Promise((resolve) => view.setTimeout(resolve, 250));
+const pagehide = () => view.dispatchEvent(new view.Event('pagehide'));
+const motion = (matches) => motionQuery !== null && motionQuery.dispatchEvent(
+    new view.MediaQueryListEvent('change', {media: REDUCED_MOTION, matches})
+);
+
+const baseline = state();
+
+doc.open();
+doc.write(html);
+doc.close();
+
+/* The effect is scheduled on idle, so mounting is awaited, never assumed. */
+const deadline = Date.now() + 8000;
+while (state().hero !== 'live' && Date.now() < deadline) {
+    await settle();
+}
+
+const mounted = state();
+const steps = [];
+
+if (phase === 'pagehide') {
+    pagehide();
+    await settle();
+    steps.push(['after pagehide', state()]);
+
+    /* Repeat signals, of both kinds, on an already-released hero. */
+    pagehide();
+    motion(true);
+    await settle();
+    steps.push(['after repeated teardown signals', state()]);
+} else {
+    /* A query that did not match is not a request to stop. */
+    motion(false);
+    await settle();
+    steps.push(['after non-matching motion change', state()]);
+
+    motion(true);
+    await settle();
+    steps.push(['after reduced-motion change', state()]);
+
+    /* If pagehide were still registered, this would destroy a second time. */
+    pagehide();
+    motion(true);
+    await settle();
+    steps.push(['after repeated teardown signals', state()]);
+}
+
+frame.remove();
+
+return {phase, baseline, mounted, steps, motionQueryCaptured: motionQuery !== null};
+})();
+"""
+
+
+def hero_lifecycle(session: str, base_url: str) -> tuple[list[dict[str, object]], list[str]]:
+    """Mounts and tears the hero down twice, counting listeners and destroys."""
+    webdriver("POST", f"/session/{session}/window/rect", {"width": 1440, "height": 1000})
+    webdriver("POST", f"/session/{session}/url", {"url": base_url + "/"})
+    html = execute(session, "return fetch(arguments[0]).then((response) => response.text());", [base_url + "/"])
+
+    report: list[dict[str, object]] = []
+    failures: list[str] = []
+
+    for phase in ("pagehide", "reduced-motion"):
+        result = execute(session, HERO_LIFECYCLE, [html, phase])
+        report.append(result)
+        label = f"hero lifecycle ({phase})"
+        baseline, mounted = result["baseline"], result["mounted"]
+
+        if baseline["pagehideListeners"] or baseline["motionListeners"] or baseline["destroys"]:
+            failures.append(f"{label}: instrumentation did not start from an empty baseline")
+        if mounted["hero"] != "live":
+            failures.append(f"{label}: the hero never mounted, so teardown proves nothing")
+        if mounted["canvases"] != 1 or mounted["destroys"] != 0:
+            failures.append(f"{label}: a mounted hero must own exactly one live canvas")
+        if mounted["pagehideListeners"] != 1 or mounted["motionListeners"] != 1:
+            failures.append(
+                f"{label}: expected one pagehide and one reduced-motion listener, got "
+                f"{mounted['pagehideListeners']} and {mounted['motionListeners']}"
+            )
+        if not result["motionQueryCaptured"]:
+            failures.append(f"{label}: the skin never queried reduced motion after mounting")
+
+        for name, step in result["steps"]:
+            held = name == "after non-matching motion change"
+            expected_destroys = 0 if held else 1
+            if step["destroys"] != expected_destroys:
+                failures.append(
+                    f"{label} {name}: expected {expected_destroys} destroy(s), got {step['destroys']}"
+                )
+            if held:
+                if step["hero"] != "live" or step["canvases"] != 1:
+                    failures.append(f"{label} {name}: a non-matching query must not tear the hero down")
+                continue
+            if step["pagehideListeners"] or step["motionListeners"]:
+                failures.append(
+                    f"{label} {name}: listeners outlived the hero "
+                    f"({step['pagehideListeners']} pagehide, {step['motionListeners']} reduced-motion)"
+                )
+            if step["canvases"] != 0 or step["hero"] != "static" or not step["fallback"]:
+                failures.append(f"{label} {name}: the static fallback was not restored intact")
+
+    return report, failures
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8765")
@@ -50,6 +252,7 @@ def main() -> int:
     parser.add_argument("--login-email")
     parser.add_argument("--login-password")
     parser.add_argument("--contact-states", action="store_true")
+    parser.add_argument("--hero-lifecycle", action="store_true")
     options = parser.parse_args()
 
     output = Path(options.output)
@@ -112,6 +315,11 @@ def main() -> int:
                 failures.append("contact error state did not expose all server-side validation feedback")
             if form_state["disabled"][2] != "not-allowed":
                 failures.append("disabled control state is not visibly non-interactive")
+
+        if options.hero_lifecycle:
+            lifecycle, lifecycle_failures = hero_lifecycle(session, options.base_url)
+            (output / "hero-lifecycle.json").write_text(json.dumps(lifecycle, indent=2) + "\n")
+            failures.extend(lifecycle_failures)
 
         for width in options.widths:
             webdriver("POST", f"/session/{session}/window/rect", {"width": max(width, 500), "height": 900})

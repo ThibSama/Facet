@@ -482,18 +482,154 @@ html[data-skin='evolving-interface'] .facet-hero__visual[data-facet-hero='live']
   opacity: 1;
 }
 
-html[data-skin='evolving-interface'] .facet-card-grid {
-  align-items: stretch;
-  gap: var(--facet-space-5);
-}
-
+/*
+ * The card as a material.
+ *
+ * Radius, padding, border width and hairline colour are utilities on the
+ * element itself — reading the template tells you the card's box. What is left
+ * here is what a utility cannot say: a layered surface, a depth that answers a
+ * pointer, and the overlay that turns the heading's one link into the whole
+ * card's target.
+ *
+ * `isolation: isolate` is what lets the glow live at `z-index: -1`: the card
+ * becomes a stacking context, so the pseudo-element paints above the card's own
+ * background and below every word on it, and never escapes behind the grid.
+ */
 html[data-skin='evolving-interface'] .facet-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   min-width: 0;
-  border-color: var(--facet-border);
-  border-radius: var(--facet-radius-lg);
   background: color-mix(in srgb, var(--facet-surface-raised) 88%, transparent);
   box-shadow: var(--facet-shadow-sm);
+  transition:
+    transform var(--facet-duration-base) var(--facet-ease-emphasized),
+    border-color var(--facet-duration-base) var(--facet-ease-standard),
+    box-shadow var(--facet-duration-base) var(--facet-ease-standard);
 }
+
+/*
+ * Section entry.
+ *
+ * Two properties, both of which the compositor can animate on its own, and
+ * neither of which changes the section's box: the document's height, every
+ * section's position and every line break are identical before, during and
+ * after. That is the whole reason this is a `transform` and not a margin.
+ *
+ * Every rule is gated on an attribute the runtime sets, and the runtime only
+ * ever sets it on a section that is below the fold — so nothing that has been
+ * painted is taken away, and a reader with no JavaScript, or with reduced
+ * motion, is served the page with no entry state at all.
+ */
+html[data-skin='evolving-interface'] .facet-main > section[data-facet-reveal-section] {
+  opacity: 0;
+  transform: translate3d(0, 10px, 0);
+  transition:
+    opacity var(--facet-duration-slow) var(--facet-ease-standard),
+    transform var(--facet-duration-slow) var(--facet-ease-emphasized);
+}
+
+html[data-skin='evolving-interface'] .facet-main > section[data-facet-reveal='in'] {
+  opacity: 1;
+  transform: none;
+}
+
+/*
+ * Paper has no viewport, so nothing on it can be waiting to arrive. Without
+ * this a printed page would carry the entry state of whatever the reader had
+ * not scrolled to.
+ */
+@media print {
+  html[data-skin='evolving-interface'] .facet-main > section[data-facet-reveal-section] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * The light's offsets, declared rather than merely used.
+ *
+ * A custom property is inherited by default, so writing one on a card
+ * invalidates the computed style of everything inside it — on a card that is
+ * a heading, a media slot, a summary and two definition lists, sixty times a
+ * second. `inherits: false` confines the change to the one element that reads
+ * it, and typing them as lengths is what lets the value be interpolated and
+ * handed to the compositor instead of re-resolved from a string.
+ */
+@property --facet-card-dx {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --facet-card-dy {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+/*
+ * The reactive light.
+ *
+ * It is a fixed-size disc that *moves*, not a gradient whose origin is
+ * redrawn. The distinction was measured rather than assumed: repositioning a
+ * gradient inside a card-sized box repaints the whole card on every frame the
+ * pointer moves, and `tools/firefox-audit.py --card-interaction` recorded that
+ * as 43.8 fps and a 50 ms p95 on the catalogue grid. A disc that only ever
+ * changes its `transform` and its `opacity` is painted once and then handed to
+ * the compositor, which is what the same trace now measures at 59 fps.
+ *
+ * The card clips it, which is what `overflow: hidden` above is for.
+ *
+ * The offsets are custom properties with static defaults, and that is the
+ * whole progressive-enhancement story: with no JavaScript the disc rests at
+ * the top centre and the card still lights up under a pointer or a focus ring,
+ * and the runtime — where a fine pointer exists and motion is welcome — does
+ * nothing but move it to where the pointer actually is.
+ */
+html[data-skin='evolving-interface'] .facet-card::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 50%;
+  width: 26rem;
+  height: 26rem;
+  margin: -13rem 0 0 -13rem;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--facet-accent) 20%, transparent),
+    transparent
+  );
+  opacity: 0;
+  transform: translate3d(var(--facet-card-dx, 0px), var(--facet-card-dy, 0px), 0);
+  transition: opacity var(--facet-duration-slow) var(--facet-ease-standard);
+}
+
+/*
+ * The pointer-driven half is behind `hover: hover` on purpose. A touch screen
+ * reports a sticky `:hover` on whatever was tapped last, so a card would keep a
+ * lit state nobody asked for; and touch must not need hover to reach anything
+ * here, because the whole card is already a tap target.
+ */
+@media (hover: hover) {
+  html[data-skin='evolving-interface'] .facet-card:hover {
+    transform: translateY(-3px);
+  }
+
+  html[data-skin='evolving-interface'] .facet-card:hover::before { opacity: 1; }
+}
+
+/*
+ * Keyboard parity, stated separately rather than as a selector list, because
+ * it must survive a pointer media query that keyboard focus has nothing to do
+ * with. Focus gets the same lift, the same light and the same border.
+ */
+html[data-skin='evolving-interface'] .facet-card:focus-within {
+  transform: translateY(-3px);
+}
+
+html[data-skin='evolving-interface'] .facet-card:focus-within::before { opacity: 1; }
 
 html[data-skin='evolving-interface'] .facet-card:hover,
 html[data-skin='evolving-interface'] .facet-card:focus-within {
@@ -501,24 +637,120 @@ html[data-skin='evolving-interface'] .facet-card:focus-within {
   box-shadow: var(--facet-shadow-md), var(--facet-glow);
 }
 
-html[data-skin='evolving-interface'] .facet-project-card {
-  padding: var(--facet-space-4);
+/*
+ * One semantic link, stretched.
+ *
+ * The card's canonical URL is the heading's anchor and nothing else: this
+ * overlay only enlarges that anchor's hit area to the card's box. There is no
+ * click handler, no `role`, no second link and no element that is focusable
+ * without being the link — so the pointer, the tap and the keyboard all arrive
+ * at exactly the same `href`, and a card is one tab stop rather than a trap.
+ */
+/*
+ * The light is promoted only while it is actually travelling, and the runtime
+ * says when that is — the card the pointer is on carries the mark, and gives
+ * it up the moment the pointer leaves. A permanent `will-change` on every card
+ * in a catalogue is a compositor layer per card held for the life of the page,
+ * which is memory spent on nothing; promoting on `:hover` instead would be a
+ * layer the reader pays for even where no runtime is moving anything.
+ */
+html[data-skin='evolving-interface'] .facet-card[data-facet-card='tracked']::before {
+  will-change: transform;
+}
+
+html[data-skin='evolving-interface'] .facet-card__link::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: inherit;
 }
 
 html[data-skin='evolving-interface'] .facet-project-card .facet-media {
   border-radius: calc(var(--facet-radius-lg) - var(--facet-space-1));
 }
 
-html[data-skin='evolving-interface'] .facet-chip-list {
-  gap: var(--facet-space-2);
-}
-
+/*
+ * A chip's box — radius, border, padding — is stated in the template as
+ * utilities. What is left here is its material.
+ */
 html[data-skin='evolving-interface'] .facet-chip {
-  border-color: var(--facet-border);
-  border-radius: var(--facet-radius-pill);
   background: color-mix(in srgb, var(--facet-surface-elevated) 78%, transparent);
   color: var(--facet-ink-muted);
   font-weight: 700;
+  white-space: nowrap;
+}
+
+/*
+ * The skill ribbon.
+ *
+ * Its base state is the document the server sent: a wrapping list of chips,
+ * complete, readable and reflowing at any width. Every rule that makes it a
+ * ribbon is gated on `[data-facet-ribbon='live']`, which only the runtime sets
+ * and only after it has measured the set and repeated it enough times to fill
+ * the viewport. Without JavaScript, with reduced motion, or before the runtime
+ * arrives, none of the rules below apply and nothing is hidden.
+ */
+html[data-skin='evolving-interface'] .facet-ribbon {
+  position: relative;
+}
+
+/*
+ * The strip's travel, expressed once.
+ *
+ * `--facet-ribbon-shift` is the width of exactly one set plus the gap that
+ * follows it, so translating by it lands the second copy precisely where the
+ * first one started. That is what makes the loop seamless: the frame the
+ * animation restarts on is pixel-identical to the frame before it, so there is
+ * no reset to see. Nothing but `transform` changes, so the whole thing is a
+ * compositor job and costs no layout, no paint and no script per frame.
+ */
+@keyframes facet-ribbon-travel {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(calc(-1 * var(--facet-ribbon-shift, 0px)), 0, 0); }
+}
+
+html[data-skin='evolving-interface'] [data-facet-ribbon='live'] {
+  overflow: hidden;
+  /*
+   * The strip does not stop at an edge, it fades out at one — otherwise the
+   * loop reads as a list being cut off rather than as one that continues.
+   */
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 var(--facet-ribbon-fade, 3rem),
+    #000 calc(100% - var(--facet-ribbon-fade, 3rem)),
+    transparent
+  );
+}
+
+html[data-skin='evolving-interface'] [data-facet-ribbon='live'] .facet-ribbon__track {
+  width: max-content;
+  flex-wrap: nowrap;
+  will-change: transform;
+  animation: facet-ribbon-travel var(--facet-ribbon-duration, 40s) linear infinite;
+}
+
+html[data-skin='evolving-interface'] [data-facet-ribbon='live'] [data-facet-ribbon-set] {
+  flex-wrap: nowrap;
+}
+
+html[data-skin='evolving-interface'] [data-facet-ribbon='live'][data-facet-ribbon-direction='reverse'] .facet-ribbon__track {
+  animation-direction: reverse;
+}
+
+/*
+ * Yielding to the reader.
+ *
+ * Pausing a CSS animation freezes it exactly where it stands and resuming it
+ * carries on from there, so a ribbon that was interrupted never jumps to catch
+ * up — which is the difference between yielding to input and fighting it. The
+ * runtime sets this whenever a pointer rests on the ribbon, a finger holds it,
+ * focus enters it, or it scrolls out of view.
+ */
+html[data-skin='evolving-interface'] [data-facet-ribbon='live'][data-facet-ribbon-hold] .facet-ribbon__track {
+  animation-play-state: paused;
 }
 
 html[data-skin='evolving-interface'] .facet-timeline {
@@ -655,7 +887,6 @@ html[data-skin='evolving-interface'] .facet-inline-form { flex-wrap: wrap; }
     padding-top: var(--facet-space-6);
   }
 
-  html[data-skin='evolving-interface'] .facet-card-grid { grid-template-columns: minmax(0, 1fr); }
   html[data-skin='evolving-interface'] .facet-form-panel { padding: var(--facet-space-4); }
 
   html[data-skin='evolving-interface'] .facet-inbox,
@@ -732,4 +963,47 @@ html[data-skin='evolving-interface'] .facet-inline-form { flex-wrap: wrap; }
 
 @media (prefers-reduced-motion: reduce) {
   html[data-skin='evolving-interface'] body { background-attachment: scroll; }
+
+  /*
+   * A section is never waiting to arrive. The runtime declines to mount the
+   * observer at all under reduced motion and undoes it if the preference
+   * changes mid-visit; this is the lock for the moment in between.
+   */
+  html[data-skin='evolving-interface'] .facet-main > section[data-facet-reveal-section] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  /*
+   * A ribbon never autoplays here. The runtime already declines to mount one
+   * under reduced motion, and tears down any it had mounted the moment the
+   * preference changes; this is the second lock, for the case where the
+   * document is styled before any of that has had a chance to run.
+   */
+  html[data-skin='evolving-interface'] .facet-ribbon__track {
+    animation: none;
+    flex-wrap: wrap;
+    width: auto;
+  }
+
+  html[data-skin='evolving-interface'] [data-facet-ribbon] {
+    overflow: visible;
+    mask-image: none;
+  }
+
+  /* A repeat is only ever a visual device. With the motion gone it is noise. */
+  html[data-skin='evolving-interface'] [data-facet-ribbon-clone] {
+    display: none;
+  }
+
+  /*
+   * The affordance is not the movement. A card that is hovered or focused
+   * still lights up, still takes the accent border and still raises its
+   * shadow — it simply does not travel to say so.
+   */
+  html[data-skin='evolving-interface'] .facet-card:hover,
+  html[data-skin='evolving-interface'] .facet-card:focus-within {
+    transform: none;
+  }
 }

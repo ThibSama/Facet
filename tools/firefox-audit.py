@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import re
+import time
 from pathlib import Path
 from urllib import request
 
@@ -241,6 +243,1086 @@ def hero_lifecycle(session: str, base_url: str) -> tuple[list[dict[str, object]]
     return report, failures
 
 
+CARD_PROBE = """
+/*
+ * What a card promises, measured on the served page rather than asserted from
+ * its source: that a point anywhere on the card hit-tests to the one canonical
+ * link, and that lifting a card moves nothing but the card.
+ *
+ * The geometry of a neighbour is read before and during the lift. A transform
+ * is a compositor operation and must leave every other box exactly where it
+ * was; if the lift were implemented with margins or top offsets, these two
+ * readings would differ and the trace below would say so.
+ */
+const grid = document.querySelector('[data-facet-card-grid]');
+const cards = [...document.querySelectorAll('.facet-card')];
+const first = cards[0];
+const last = cards[cards.length - 1];
+const footer = document.querySelector('.facet-footer');
+
+const box = (node) => {
+    const rect = node.getBoundingClientRect();
+    return [Math.round(rect.left), Math.round(rect.top), Math.round(rect.width), Math.round(rect.height)];
+};
+
+/* Points a finger or a cursor would plausibly land on, all off the text. */
+/*
+ * The card's corners are rounded and its overflow is clipped, so a point six
+ * pixels into the literal corner of the bounding box is *outside* the card a
+ * reader can see. The probes are inset by the corner radius instead, which is
+ * the difference between asking "does the whole card answer" and asking "does
+ * a pixel nobody would call part of the card answer".
+ */
+const rect = first.getBoundingClientRect();
+const radius = Math.ceil(Number.parseFloat(getComputedStyle(first).borderTopLeftRadius) || 0) + 2;
+const probes = {
+    'top-left': [rect.left + radius, rect.top + radius],
+    'top-right': [rect.right - radius, rect.top + radius],
+    'bottom-left': [rect.left + radius, rect.bottom - radius],
+    'bottom-right': [rect.right - radius, rect.bottom - radius],
+    'left-edge': [rect.left + 3, rect.top + rect.height / 2],
+    'right-edge': [rect.right - 3, rect.top + rect.height / 2],
+    'top-edge': [rect.left + rect.width / 2, rect.top + 3],
+    'bottom-edge': [rect.left + rect.width / 2, rect.bottom - 3],
+    centre: [rect.left + rect.width / 2, rect.top + rect.height / 2],
+};
+
+const link = first.querySelector('a.facet-card__link');
+const hits = {};
+for (const [name, [x, y]] of Object.entries(probes)) {
+    const found = document.elementFromPoint(x, y);
+    hits[name] = found === null ? null : (found === link || link.contains(found) ? 'link' : found.tagName.toLowerCase() + '.' + (found.className || ''));
+}
+
+return {
+    cards: cards.length,
+    grid: grid !== null,
+    href: link.getAttribute('href'),
+    hits,
+    neighbourBefore: box(last),
+    footerBefore: footer === null ? null : box(footer),
+    tabIndexes: cards.map((card) => card.querySelectorAll('a, button, input, select, textarea, [tabindex]').length),
+    probePoints: probes,
+};
+"""
+
+CARD_SETTLE = """
+/*
+ * Read while the pointer is still resting on the first card, and only after
+ * the transitions have had time to finish. A card that is measured mid-fade
+ * reports the state it is leaving, not the state it reached.
+ */
+return (async () => {
+await new Promise((resolve) => setTimeout(resolve, 600));
+
+const cards = [...document.querySelectorAll('.facet-card')];
+const first = cards[0];
+const last = cards[cards.length - 1];
+const footer = document.querySelector('.facet-footer');
+const box = (node) => {
+    const rect = node.getBoundingClientRect();
+    return [Math.round(rect.left), Math.round(rect.top), Math.round(rect.width), Math.round(rect.height)];
+};
+
+return {
+    transform: getComputedStyle(first).transform,
+    lightOpacity: getComputedStyle(first, '::before').opacity,
+    origin: [first.style.getPropertyValue('--facet-card-dx'), first.style.getPropertyValue('--facet-card-dy')],
+    promoted: first.dataset.facetCard || '',
+    neighbourDuring: box(last),
+    footerDuring: footer === null ? null : box(footer),
+};
+})();
+"""
+
+CARD_TRACE = """
+/*
+ * The grid's cost under a pointer that never stops moving.
+ *
+ * WebDriver's own action pacing cannot answer this: it delivers a handful of
+ * events per second and the frame rate it produces measures the harness. So
+ * the storm is dispatched in the page, at the rate a fast pointer really
+ * produces — eight moves per animation frame, for two seconds — against the
+ * real listeners the skin registered.
+ *
+ * Two numbers matter. `handlerMs` is the main-thread time the skin's own
+ * `pointermove` handler costs per event, which is what a forced reflow would
+ * make impossible to hide: reading a card's geometry per move would put a
+ * layout flush inside every one of these. `frameP95` is what the reader
+ * actually perceives while the light follows their cursor.
+ */
+return (async () => {
+const grid = document.querySelector('[data-facet-card-grid]');
+const cards = [...document.querySelectorAll('.facet-card')];
+const targets = cards.map((card) => {
+    const rect = card.getBoundingClientRect();
+    return {node: card.querySelector('.facet-media, p, h2, h3') || card, rect};
+});
+
+const deltas = [];
+let handlerTotal = 0;
+let dispatched = 0;
+let previous = 0;
+let ticks = 0;
+let crossings = 0;
+let crossingTotal = 0;
+let resting = null;
+
+await new Promise((resolve) => {
+    const tick = (now) => {
+        if (previous !== 0) deltas.push(now - previous);
+        previous = now;
+        ticks += 1;
+
+        /*
+         * A pointer travels *across* a card before it reaches the next one.
+         * Cycling cards on every event would model a cursor that teleports,
+         * and would charge every single move the one-off cost of arriving on
+         * a new card — so the storm dwells for three frames, twenty-four
+         * moves, before moving on. `crossings` counts the arrivals, and
+         * `handlerMsWorst` prices them, so the expensive case is reported
+         * rather than averaged away.
+         */
+        const target = targets[Math.floor(ticks / 3) % targets.length];
+        const arriving = target !== resting;
+
+        for (let i = 0; i < 8; i += 1) {
+            const step = ((dispatched + i) % 24) / 24;
+            const event = new PointerEvent('pointermove', {
+                bubbles: true,
+                pointerType: 'mouse',
+                clientX: target.rect.left + 4 + step * (target.rect.width - 8),
+                clientY: target.rect.top + 4 + step * (target.rect.height - 8),
+            });
+            const before = performance.now();
+            target.node.dispatchEvent(event);
+            const cost = performance.now() - before;
+            handlerTotal += cost;
+
+            if (arriving && i === 0) {
+                crossingTotal += cost;
+                crossings += 1;
+            }
+        }
+
+        resting = target;
+        dispatched += 8;
+
+        if (ticks >= 120) {
+            resolve();
+            return;
+        }
+
+        requestAnimationFrame(tick);
+    };
+
+    requestAnimationFrame(tick);
+});
+
+const samples = deltas.slice(5).sort((a, b) => a - b);
+const at = (q) => samples.length === 0 ? null : Math.round(samples[Math.min(samples.length - 1, Math.floor(samples.length * q))] * 10) / 10;
+
+return {
+    grid: grid !== null,
+    frames: samples.length,
+    dispatched,
+    fps: samples.length === 0 ? null : Math.round((1000 / (samples.reduce((a, b) => a + b, 0) / samples.length)) * 10) / 10,
+    frameP95: at(0.95),
+    frameMax: samples.length === 0 ? null : Math.round(samples[samples.length - 1] * 10) / 10,
+    handlerMs: Math.round((handlerTotal / dispatched) * 10000) / 10000,
+    crossings,
+    handlerMsWorst: crossings === 0 ? null : Math.round((crossingTotal / crossings) * 10000) / 10000,
+};
+})();
+"""
+
+CARD_KEYBOARD = """
+/* Focus the card's link the way a keyboard would reach it. */
+const card = document.querySelectorAll('.facet-card')[arguments[0]];
+const link = card.querySelector('a.facet-card__link');
+link.focus();
+return {
+    focused: document.activeElement === link,
+    reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+};
+"""
+
+CARD_KEYBOARD_SETTLED = """
+/* The same card once its transitions have run: what the reader ends up seeing. */
+const card = document.querySelectorAll('.facet-card')[arguments[0]];
+const link = card.querySelector('a.facet-card__link');
+return {
+    transform: getComputedStyle(card).transform,
+    lightOpacity: getComputedStyle(card, '::before').opacity,
+    outline: getComputedStyle(link).outlineStyle,
+    stillFocused: document.activeElement === link,
+};
+"""
+
+
+def card_interaction(
+    session: str,
+    base_url: str,
+    reduced_motion: bool,
+    pointer: str,
+) -> tuple[dict[str, object], list[str]]:
+    """Hit-tests the card, sweeps a pointer across the grid and reads the lift.
+
+    `pointer` is the device class the run stands in for. A fine pointer is
+    expected to light and lift a card it rests on; a coarse one is expected to
+    do neither, and to reach exactly the same URL anyway.
+    """
+    label = f"cards ({pointer} pointer{', reduced-motion' if reduced_motion else ''})"
+    hovers = pointer == "fine" and not reduced_motion
+    failures: list[str] = []
+
+    webdriver("POST", f"/session/{session}/window/rect", {"width": 1440, "height": 1000})
+    webdriver("POST", f"/session/{session}/url", {"url": base_url + "/projects"})
+    execute(session, "return new Promise((resolve) => setTimeout(resolve, 500));")
+
+    probe = execute(session, CARD_PROBE)
+
+    if probe["cards"] < 2:
+        failures.append(f"{label}: the catalogue must render more than one card for this gate to mean anything")
+    if not probe["grid"]:
+        failures.append(f"{label}: the grid carries no runtime hook")
+
+    for name, hit in probe["hits"].items():
+        if hit != "link":
+            failures.append(f"{label}: a pointer at the {name} of a card reached {hit}, not the canonical link")
+
+    for count in probe["tabIndexes"]:
+        if count != 1:
+            failures.append(f"{label}: a card exposes {count} focusable elements; one link means one tab stop")
+
+    # A real pointer sweep across the whole grid, in the browser's own event queue.
+    origin = probe["probePoints"]["centre"]
+    moves: list[dict[str, object]] = [
+        {"type": "pointerMove", "duration": 0, "x": int(origin[0]), "y": int(origin[1])}
+    ]
+    for step in range(1, 41):
+        moves.append({
+            "type": "pointerMove",
+            "duration": 16,
+            "x": int(origin[0] + step * 9),
+            "y": int(origin[1] + (step % 12) * 4),
+        })
+
+    # The sweep ends where it started, so the state that is read afterwards is
+    # the state of a card the pointer is actually resting on.
+    moves.append({"type": "pointerMove", "duration": 120, "x": int(origin[0]), "y": int(origin[1])})
+
+    webdriver("POST", f"/session/{session}/actions", {"actions": [{
+        "type": "pointer",
+        "id": "mouse",
+        "parameters": {"pointerType": "mouse"},
+        "actions": moves,
+    }]})
+
+    settled = execute(session, CARD_SETTLE)
+    trace = execute(session, CARD_TRACE)
+
+    if settled["neighbourDuring"] != probe["neighbourBefore"]:
+        failures.append(
+            f"{label}: hovering a card moved a neighbour "
+            f"{probe['neighbourBefore']} -> {settled['neighbourDuring']}"
+        )
+    if settled["footerDuring"] != probe["footerBefore"]:
+        failures.append(f"{label}: hovering a card moved the page below the grid")
+    if trace["frames"] < 60:
+        failures.append(f"{label}: only {trace['frames']} frames sampled; the trace proves nothing")
+    else:
+        if trace["frameP95"] is not None and trace["frameP95"] > 34:
+            failures.append(
+                f"{label}: frame p95 {trace['frameP95']} ms under a moving pointer (budget 34 ms)"
+            )
+        if trace["handlerMs"] > 0.02:
+            failures.append(
+                f"{label}: {trace['handlerMs']} ms of main-thread work per pointer move; "
+                "a per-move measurement is a forced reflow"
+            )
+        if trace["handlerMsWorst"] is not None and trace["handlerMsWorst"] > 0.5:
+            failures.append(
+                f"{label}: arriving on a card costs {trace['handlerMsWorst']} ms"
+            )
+
+    still = settled["transform"] in ("none", "matrix(1, 0, 0, 1, 0, 0)")
+
+    if reduced_motion:
+        if not still:
+            failures.append(f"{label}: a card still travels under reduced motion ({settled['transform']})")
+        if settled["origin"] != ["", ""]:
+            failures.append(f"{label}: the pointer tracker mounted despite reduced motion")
+    elif pointer == "coarse":
+        # A finger leaves a sticky `:hover` behind on whatever it touched last.
+        # Neither the lift nor the light may depend on it.
+        if not still:
+            failures.append(f"{label}: a coarse pointer lifted a card it is not resting on")
+        if float(settled["lightOpacity"]) > 0.1:
+            failures.append(f"{label}: a sticky hover left a card lit on a touch screen")
+        if settled["origin"] != ["", ""]:
+            failures.append(f"{label}: the pointer tracker mounted for a pointer with no path")
+    else:
+        if still:
+            failures.append(f"{label}: a hovered card did not lift")
+        if float(settled["lightOpacity"]) < 0.9:
+            failures.append(f"{label}: a hovered card did not light")
+        if settled["origin"] == ["", ""]:
+            failures.append(f"{label}: the pointer tracker never moved the light")
+
+    if reduced_motion and float(settled["lightOpacity"]) < 0.9 and pointer == "fine":
+        failures.append(f"{label}: reduced motion withdrew the affordance as well as the movement")
+
+    keyboard = execute(session, CARD_KEYBOARD, [1])
+    execute(session, "return new Promise((resolve) => setTimeout(resolve, 600));")
+    keyboard = {**keyboard, **execute(session, CARD_KEYBOARD_SETTLED, [1])}
+
+    if not keyboard["focused"]:
+        failures.append(f"{label}: the card's link is not focusable")
+    if float(keyboard["lightOpacity"]) < 0.9:
+        failures.append(f"{label}: keyboard focus does not light the card the way hover does")
+    if not reduced_motion and keyboard["transform"] in ("none", "matrix(1, 0, 0, 1, 0, 0)"):
+        failures.append(f"{label}: keyboard focus does not lift the card the way hover does")
+    if hovers and settled["transform"] != keyboard["transform"]:
+        failures.append(
+            f"{label}: focus and hover are not the same treatment "
+            f"({keyboard['transform']} against {settled['transform']})"
+        )
+    if reduced_motion and keyboard["transform"] not in ("none", "matrix(1, 0, 0, 1, 0, 0)"):
+        failures.append(f"{label}: reduced motion must neutralise the focus lift too")
+    if keyboard["outline"] == "none":
+        failures.append(f"{label}: the focused link lost its focus ring")
+    if keyboard["reducedMotion"] != reduced_motion:
+        failures.append(f"{label}: the profile did not apply; reduced motion is {keyboard['reducedMotion']}")
+
+    # A tap at the card's far corner, with a touch pointer, must navigate.
+    corner = probe["probePoints"]["bottom-right"]
+    webdriver("POST", f"/session/{session}/actions", {"actions": [{
+        "type": "pointer",
+        "id": "finger",
+        "parameters": {"pointerType": "touch"},
+        "actions": [
+            {"type": "pointerMove", "duration": 0, "x": int(corner[0]), "y": int(corner[1])},
+            {"type": "pointerDown", "button": 0},
+            {"type": "pause", "duration": 40},
+            {"type": "pointerUp", "button": 0},
+        ],
+    }]})
+    # The tap navigates, so the page is polled rather than scripted: a script
+    # injected into a document that is being replaced is a race, not a check.
+    landed = ""
+    for _ in range(40):
+        landed = webdriver("GET", f"/session/{session}/url")
+        if landed.endswith(probe["href"]):
+            break
+        time.sleep(0.1)
+
+    if not landed.endswith(probe["href"]):
+        failures.append(f"{label}: a tap at the card's corner landed on {landed}, not {probe['href']}")
+
+    return {
+        "profile": ("reduced-motion" if reduced_motion else "normal") + f" / {pointer} pointer",
+        "pointer": pointer,
+        "probe": probe,
+        "settled": settled,
+        "trace": trace,
+        "keyboard": keyboard,
+        "tapLandedOn": landed,
+    }, failures
+
+
+RIBBON_STATE = """
+/*
+ * One reading of every ribbon on the page, taken from the rendered document
+ * rather than from the module that built it.
+ *
+ * `covered` is the seam test. A ribbon is seamless exactly when the strip
+ * always overhangs the viewport at both ends: the moment the rightmost copy's
+ * right edge crosses inside the ribbon's own right edge, a reader sees the
+ * list end and restart. Sampling that over minutes is the only honest way to
+ * say a loop has no jump — an animation that resets is one that stops
+ * overhanging for a frame.
+ */
+return [...document.querySelectorAll('[data-facet-ribbon]')].map((ribbon) => {
+    const track = ribbon.querySelector('[data-facet-ribbon-track]');
+    const sets = [...track.children];
+    const frame = ribbon.getBoundingClientRect();
+    const rects = sets.map((set) => set.getBoundingClientRect());
+    const style = getComputedStyle(track);
+    const matrix = new DOMMatrixReadOnly(style.transform === 'none' ? '' : style.transform);
+
+    return {
+        direction: ribbon.dataset.facetRibbonDirection || null,
+        live: ribbon.dataset.facetRibbon || null,
+        held: 'facetRibbonHold' in ribbon.dataset,
+        x: Math.round(matrix.m41 * 100) / 100,
+        shift: Math.round(Number.parseFloat(ribbon.style.getPropertyValue('--facet-ribbon-shift')) * 100) / 100 || null,
+        duration: style.animationDuration,
+        iterations: style.animationIterationCount,
+        playState: style.animationPlayState,
+        sets: sets.length,
+        clones: track.querySelectorAll('[data-facet-ribbon-clone]').length,
+        focusableInClones: track.querySelectorAll('[data-facet-ribbon-clone] a, [data-facet-ribbon-clone] button, [data-facet-ribbon-clone] input, [data-facet-ribbon-clone] [tabindex]').length,
+        unhiddenClones: [...track.querySelectorAll('[data-facet-ribbon-clone]')].filter((clone) => clone.getAttribute('aria-hidden') !== 'true').length,
+        covered: rects.length > 0
+            && Math.min(...rects.map((rect) => rect.left)) <= frame.left + 1
+            && Math.max(...rects.map((rect) => rect.right)) >= frame.right - 1,
+        overflowX: Math.round(track.scrollWidth - ribbon.clientWidth),
+        wrapped: style.flexWrap,
+        chips: ribbon.querySelectorAll('[data-facet-ribbon-set]:not([data-facet-ribbon-clone]) li').length,
+    };
+});
+"""
+
+RIBBON_SEMANTICS = """
+/*
+ * What the page *says*, as opposed to what it shows.
+ *
+ * The walk skips every `aria-hidden` subtree, which is precisely the set of
+ * things a screen reader will never announce and a copy is required to be. If
+ * a skill appears twice in what comes back, the duplication stopped being
+ * visual and became a claim.
+ */
+const names = arguments[0];
+const main = document.querySelector('main');
+
+const walk = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent;
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+    if (node.getAttribute('aria-hidden') === 'true') return '';
+    if (node.hasAttribute('hidden')) return '';
+    let text = '';
+    for (const child of node.childNodes) text += walk(child) + '\\n';
+    return text;
+};
+
+const spoken = walk(main);
+const counts = {};
+for (const name of names) {
+    counts[name] = spoken.split('\\n').filter((line) => line.trim() === name).length;
+}
+
+return {
+    counts,
+    visibleChips: [...document.querySelectorAll('[data-facet-ribbon] li')].length,
+    spokenChips: [...document.querySelectorAll('[data-facet-ribbon] li')].filter((chip) => chip.closest('[aria-hidden="true"]') === null).length,
+};
+"""
+
+
+# How much of the distance a ribbon's own declared pace implies must actually
+# be covered. Below 1 because the watch samples over a wire and a browser is
+# allowed to drop frames; a ribbon that stopped would miss this by an order of
+# magnitude, not by a margin.
+SPEED_TOLERANCE = 0.8
+
+
+def ribbons(
+    session: str,
+    base_url: str,
+    seconds: int,
+    skills: list[str],
+    reduced_motion: bool,
+    no_js: bool,
+) -> tuple[dict[str, object], list[str]]:
+    """Watches every ribbon for `seconds`, then interrogates one of them."""
+    label = "ribbons"
+    if reduced_motion:
+        label += " (reduced-motion)"
+    if no_js:
+        label += " (no-JS)"
+
+    failures: list[str] = []
+
+    webdriver("POST", f"/session/{session}/window/rect", {"width": 1440, "height": 1000})
+    webdriver("POST", f"/session/{session}/url", {"url": base_url + "/"})
+
+    if no_js:
+        # With scripting off there is nothing to interrogate in the browser:
+        # the document *is* the answer. So it is fetched and read directly,
+        # which is also the strongest form of the claim — every canonical skill
+        # exactly once, no copies, and no ribbon that thinks it is live.
+        with request.urlopen(base_url + "/", timeout=30) as response:
+            served = response.read().decode()
+
+        served = re.sub(r"<script\b[^>]*>.*?</script>", "", served, flags=re.S)
+        report: dict[str, object] = {
+            "profile": "no-JS",
+            "ribbons": len(re.findall(r"data-facet-ribbon(?![-=])", served)),
+            "live": served.count("data-facet-ribbon=\"live\""),
+            "clones": served.count("data-facet-ribbon-clone"),
+            "hidden": served.count('aria-hidden="true"'),
+            "chips": {name: served.count(">" + name + "<") for name in skills},
+        }
+
+        if report["ribbons"] < 2:
+            failures.append(f"{label}: the server sent {report['ribbons']} ribbons")
+        if report["live"] or report["clones"]:
+            failures.append(f"{label}: the server rendered a scripted ribbon state")
+        for name, count in report["chips"].items():
+            if count != 1:
+                failures.append(f"{label}: '{name}' appears {count} times in the served document")
+
+        return report, failures
+
+    execute(session, "return new Promise((resolve) => setTimeout(resolve, 900));")
+
+    # A ribbon nobody can see is deliberately held, so the watch begins by
+    # putting the skills section on screen — otherwise this would measure the
+    # off-screen economy, not the loop.
+    execute(session, """
+        const section = document.querySelector('#skills');
+        if (section !== null) section.scrollIntoView({block: 'start'});
+        return new Promise((resolve) => setTimeout(resolve, 700));
+    """)
+
+    first = execute(session, RIBBON_STATE)
+    semantics = execute(session, RIBBON_SEMANTICS, [skills])
+
+    if len(first) < 2:
+        failures.append(f"{label}: fewer than two ribbons rendered; short and long datasets cannot both be covered")
+
+    # Every canonical skill is said exactly once, however many times it is drawn.
+    for name, count in semantics["counts"].items():
+        if count != 1:
+            failures.append(f"{label}: '{name}' is announced {count} times")
+    if semantics["spokenChips"] != len(skills):
+        failures.append(
+            f"{label}: {semantics['spokenChips']} chips are semantically present, "
+            f"expected the {len(skills)} canonical skills"
+        )
+
+    static = reduced_motion or no_js
+
+    for index, ribbon in enumerate(first):
+        where = f"{label}: ribbon {index} ({ribbon['direction']})"
+
+        if static:
+            if ribbon["live"] is not None:
+                failures.append(f"{where}: autoplay was mounted where it must not be")
+            if ribbon["clones"] != 0:
+                failures.append(f"{where}: {ribbon['clones']} copies exist with no motion to justify them")
+            if ribbon["wrapped"] != "wrap":
+                failures.append(f"{where}: the static ribbon does not wrap ({ribbon['wrapped']})")
+            if ribbon["overflowX"] > 1:
+                failures.append(f"{where}: the static ribbon overflows by {ribbon['overflowX']}px")
+            continue
+
+        if ribbon["live"] != "live":
+            failures.append(f"{where}: never became live")
+            continue
+        if ribbon["clones"] < 1:
+            failures.append(f"{where}: a loop with no repeat cannot be seamless")
+        if ribbon["unhiddenClones"] != 0:
+            failures.append(f"{where}: {ribbon['unhiddenClones']} copies are exposed to assistive technology")
+        if ribbon["focusableInClones"] != 0:
+            failures.append(f"{where}: a copy holds {ribbon['focusableInClones']} focusable elements")
+        if ribbon["iterations"] != "infinite":
+            failures.append(f"{where}: the loop is not infinite ({ribbon['iterations']})")
+        if ribbon["playState"] != "running":
+            failures.append(f"{where}: an untouched ribbon is not moving")
+
+    # --- the keyboard path ----------------------------------------------
+    #
+    # A ribbon holds no controls, so the correct keyboard behaviour is that it
+    # is not on the path at all: tabbing through the page must never land
+    # inside one, and least of all inside a copy.
+    keyboard = execute(session, """
+        const stops = [];
+        const focusable = [...document.querySelectorAll(
+            'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )];
+        for (const node of focusable) {
+            /*
+             * `preventScroll` matters: focusing every control on the page
+             * would otherwise walk the viewport down to the footer, and a
+             * ribbon that scrolled out of view pauses itself — correctly, and
+             * ruinously for a watch that has not started yet.
+             */
+            node.focus({preventScroll: true});
+            if (document.activeElement !== node) continue;
+            const ribbon = node.closest('[data-facet-ribbon]');
+            stops.push({
+                inRibbon: ribbon !== null,
+                inClone: node.closest('[data-facet-ribbon-clone]') !== null,
+            });
+        }
+        document.activeElement.blur();
+        return {stops: stops.length, inRibbon: stops.filter((s) => s.inRibbon).length, inClone: stops.filter((s) => s.inClone).length};
+    """)
+
+    # Whatever the sweep did to the viewport, the watch starts with the
+    # ribbons on screen.
+    execute(session, """
+        const section = document.querySelector('#skills');
+        if (section !== null) section.scrollIntoView({block: 'start'});
+        return new Promise((resolve) => setTimeout(resolve, 500));
+    """)
+
+    if keyboard["stops"] < 5:
+        failures.append(f"{label}: only {keyboard['stops']} tab stops found; the keyboard sweep proves nothing")
+    if keyboard["inRibbon"] or keyboard["inClone"]:
+        failures.append(
+            f"{label}: {keyboard['inRibbon']} tab stops fall inside a ribbon "
+            f"({keyboard['inClone']} of them inside a copy)"
+        )
+
+    # --- the long watch -------------------------------------------------
+    #
+    # Minutes, not seconds. A loop that resets does it once per cycle, and a
+    # cycle here is tens of seconds; a short observation would simply miss it.
+    samples: list[list[dict[str, object]]] = []
+    breaks: list[str] = []
+    deadline = time.monotonic() + seconds
+
+    # Distance is accumulated per ribbon, wrapping when the strip passes the
+    # end of a cycle. A ribbon that never resets *and* never moves would sail
+    # through a coverage check, so the watch measures both.
+    travelled = [0.0 for _ in first]
+    running = [0 for _ in first]
+    previous = [ribbon["x"] for ribbon in execute(session, RIBBON_STATE)]
+    started = time.monotonic()
+
+    while time.monotonic() < deadline:
+        reading = execute(session, RIBBON_STATE)
+        samples.append(reading)
+
+        for index, ribbon in enumerate(reading):
+            if static:
+                continue
+            if not ribbon["covered"]:
+                breaks.append(f"ribbon {index} showed the end of its strip at sample {len(samples)}")
+            if ribbon["shift"] is not None and not (-ribbon["shift"] - 1 <= ribbon["x"] <= 1):
+                breaks.append(
+                    f"ribbon {index} travelled to {ribbon['x']}px, outside one set of {ribbon['shift']}px"
+                )
+            if ribbon["duration"] != first[index]["duration"]:
+                breaks.append(f"ribbon {index} changed pace mid-loop")
+
+            # A reversed ribbon runs its keyframes backwards, so its
+            # translation counts *up* towards zero. Distance is distance either
+            # way; only the sign of the difference changes.
+            step = (
+                ribbon["x"] - previous[index]
+                if ribbon["direction"] == "reverse"
+                else previous[index] - ribbon["x"]
+            )
+            if step < 0:
+                # The cycle wrapped: the remaining distance plus the new one.
+                step += ribbon["shift"] or 0
+            travelled[index] += step
+            previous[index] = ribbon["x"]
+
+            if ribbon["playState"] == "running":
+                running[index] += 1
+
+        time.sleep(0.5)
+
+    failures.extend(sorted(set(breaks))[:10])
+
+    if not static and samples:
+        for index, ribbon in enumerate(first):
+            # Nothing held it, so it should have run for essentially the whole
+            # watch and covered the distance its own pace implies.
+            share = running[index] / len(samples)
+            watched = time.monotonic() - started
+            expected = SPEED_TOLERANCE * watched * (ribbon["shift"] or 0) / float(ribbon["duration"].rstrip("s"))
+
+            if share < 0.9:
+                failures.append(
+                    f"{label}: ribbon {index} was running for {share:.0%} of an untouched watch"
+                )
+            if travelled[index] < expected:
+                failures.append(
+                    f"{label}: ribbon {index} travelled {travelled[index]:.0f}px in {watched:.0f}s, "
+                    f"expected at least {expected:.0f}px"
+                )
+
+    interaction: dict[str, object] = {}
+
+    if not static:
+        # --- yielding to a pointer, and resuming from where it stopped ----
+        probe = execute(session, """
+            const ribbon = document.querySelectorAll('[data-facet-ribbon]')[0];
+            ribbon.scrollIntoView({block: 'center'});
+            const box = ribbon.getBoundingClientRect();
+            return [Math.round(box.left + box.width / 2), Math.round(box.top + box.height / 2)];
+        """)
+
+        def read_first() -> dict[str, object]:
+            return execute(session, RIBBON_STATE)[0]
+
+        def point(pointer_type: str, actions: list[dict[str, object]]) -> None:
+            webdriver("POST", f"/session/{session}/actions", {"actions": [{
+                "type": "pointer",
+                "id": "probe",
+                "parameters": {"pointerType": pointer_type},
+                "actions": actions,
+            }]})
+
+        point("mouse", [{"type": "pointerMove", "duration": 0, "x": probe[0], "y": probe[1]},
+                        {"type": "pause", "duration": 400}])
+        paused = read_first()
+        time.sleep(1.2)
+        stillPaused = read_first()
+
+        if paused["playState"] != "paused" or not paused["held"]:
+            failures.append(f"{label}: a resting pointer did not yield the autoplay")
+        if abs(stillPaused["x"] - paused["x"]) > 1:
+            failures.append(
+                f"{label}: a paused ribbon kept moving ({paused['x']} -> {stillPaused['x']})"
+            )
+
+        point("mouse", [{"type": "pointerMove", "duration": 0, "x": 5, "y": 5},
+                        {"type": "pause", "duration": 400}])
+        resumed = read_first()
+
+        if resumed["playState"] != "running" or resumed["held"]:
+            failures.append(f"{label}: the ribbon did not resume when the pointer left")
+        # Resuming means continuing, not restarting: the strip must not have
+        # snapped back to the start of the cycle.
+        if abs(resumed["x"]) < abs(stillPaused["x"]) - resumed["shift"] / 2:
+            failures.append(
+                f"{label}: resuming jumped the strip ({stillPaused['x']} -> {resumed['x']})"
+            )
+
+        # --- a finger holds it, and lets it go ---------------------------
+        point("touch", [{"type": "pointerMove", "duration": 0, "x": probe[0], "y": probe[1]},
+                        {"type": "pointerDown", "button": 0},
+                        {"type": "pause", "duration": 500}])
+        touched = read_first()
+        point("touch", [{"type": "pointerUp", "button": 0}, {"type": "pause", "duration": 400}])
+        released = execute(session, """
+            /* A finger leaves no pointer behind, so nothing may still hold. */
+            const ribbon = document.querySelectorAll('[data-facet-ribbon]')[0];
+            ribbon.dispatchEvent(new PointerEvent('pointerleave', {pointerType: 'touch'}));
+            return null;
+        """)
+        del released
+        time.sleep(0.4)
+        after_touch = read_first()
+
+        if touched["playState"] != "paused":
+            failures.append(f"{label}: a held finger did not yield the autoplay")
+        if after_touch["playState"] != "running":
+            failures.append(f"{label}: the ribbon stayed held after the finger left")
+
+        interaction = {
+            "paused": paused,
+            "stillPaused": stillPaused,
+            "resumed": resumed,
+            "touched": touched,
+            "afterTouch": after_touch,
+        }
+
+    return {
+        "profile": ("reduced-motion" if reduced_motion else "no-JS" if no_js else "normal"),
+        "seconds": seconds,
+        "samples": len(samples),
+        "first": first,
+        "last": samples[-1] if samples else None,
+        "semantics": semantics,
+        "keyboard": keyboard,
+        "interaction": interaction,
+        "coverageBreaks": sorted(set(breaks)),
+        "travelledPx": [round(distance) for distance in travelled],
+        "runningSamples": running,
+    }, failures
+
+
+TRANSITION_PROBE = """
+/*
+ * What section entry is allowed to cost.
+ *
+ * The two questions that matter are not "does it look nice" but "did the page
+ * change shape" and "is the scroll still the browser's". Both are measured
+ * against the document itself: the height and every section's offset are
+ * recorded before any reveal has happened, and compared with the same
+ * measurements once everything has arrived.
+ */
+const sections = [...document.querySelectorAll('.facet-main > section')];
+const marked = sections.filter((section) => 'facetRevealSection' in section.dataset);
+const root = document.documentElement;
+
+return {
+    sections: sections.length,
+    marked: marked.length,
+    revealed: marked.filter((section) => section.dataset.facetReveal === 'in').length,
+    /* A section already on screen must never have been hidden. */
+    hiddenOnScreen: marked.filter((section) => {
+        const box = section.getBoundingClientRect();
+        return box.top < window.innerHeight && section.dataset.facetReveal !== 'in';
+    }).length,
+    scrollBehaviour: getComputedStyle(root).scrollBehavior,
+    bodyScrollBehaviour: getComputedStyle(document.body).scrollBehavior,
+    height: Math.round(root.scrollHeight),
+    /*
+     * Layout metrics, not rendered ones. `getBoundingClientRect` includes the
+     * transform, so comparing it before and after would report the intended
+     * ten-pixel rise as a layout shift — which is exactly the confusion this
+     * gate exists to avoid. `offsetTop` and `offsetHeight` ignore transforms
+     * and change only if the page really did reflow.
+     */
+    offsets: sections.map((section) => section.offsetTop),
+    boxes: marked.map((section) => [section.offsetWidth, section.offsetHeight]),
+    /* Kept for the record: where the sections were actually painted. */
+    painted: marked.map((section) => Math.round(section.getBoundingClientRect().top + window.scrollY)),
+};
+"""
+
+TRANSITION_SCROLL = """
+/*
+ * A scroll driven the way a reader drives one — in steps, with the browser
+ * doing the scrolling — while animation frames are sampled underneath. A
+ * scroll handler doing layout work would show up here as dropped frames; a
+ * hijacked scroll would show up as a position that does not match the request.
+ */
+return (async () => {
+const root = document.documentElement;
+const deltas = [];
+let previous = 0;
+let running = true;
+
+const tick = (now) => {
+    if (!running) return;
+    if (previous !== 0) deltas.push(now - previous);
+    previous = now;
+    requestAnimationFrame(tick);
+};
+requestAnimationFrame(tick);
+
+const requests = [];
+const step = 400;
+window.scrollTo(0, 0);
+await new Promise((resolve) => setTimeout(resolve, 200));
+
+for (let y = 0; y <= root.scrollHeight - window.innerHeight; y += step) {
+    const before = window.scrollY;
+    window.scrollBy(0, step);
+    await new Promise((resolve) => setTimeout(resolve, 90));
+    requests.push([Math.round(before + step), Math.round(window.scrollY)]);
+}
+
+await new Promise((resolve) => setTimeout(resolve, 600));
+running = false;
+
+const samples = deltas.slice(5).sort((a, b) => a - b);
+const at = (q) => samples.length === 0 ? null : Math.round(samples[Math.min(samples.length - 1, Math.floor(samples.length * q))] * 10) / 10;
+
+/* Requests the browser could satisfy exactly; the last one clamps at the end. */
+const honoured = requests.filter(([asked, got], index) =>
+    Math.abs(asked - got) <= 2 || index === requests.length - 1
+).length;
+
+return {
+    steps: requests.length,
+    honoured,
+    frames: samples.length,
+    fps: samples.length === 0 ? null : Math.round((1000 / (samples.reduce((a, b) => a + b, 0) / samples.length)) * 10) / 10,
+    frameP95: at(0.95),
+    frameMax: samples.length === 0 ? null : Math.round(samples[samples.length - 1] * 10) / 10,
+};
+})();
+"""
+
+
+def transitions(
+    session: str,
+    base_url: str,
+    routes: list[str],
+    reduced_motion: bool,
+) -> tuple[list[dict[str, object]], list[str]]:
+    """Scrolls each route end to end and prices the section-entry transitions."""
+    label = "transitions (reduced-motion)" if reduced_motion else "transitions"
+    failures: list[str] = []
+    report: list[dict[str, object]] = []
+
+    webdriver("POST", f"/session/{session}/window/rect", {"width": 1440, "height": 900})
+
+    for route in routes:
+        webdriver("POST", f"/session/{session}/url", {"url": base_url + route})
+        execute(session, "return new Promise((resolve) => setTimeout(resolve, 700));")
+
+        before = execute(session, TRANSITION_PROBE)
+        scrolled = execute(session, TRANSITION_SCROLL)
+        after = execute(session, TRANSITION_PROBE)
+
+        where = f"{label} {route}"
+        report.append({"route": route, "before": before, "scroll": scrolled, "after": after})
+
+        if before["scrollBehaviour"] != "auto" or before["bodyScrollBehaviour"] != "auto":
+            failures.append(
+                f"{where}: scrolling is not the browser's "
+                f"({before['scrollBehaviour']} / {before['bodyScrollBehaviour']})"
+            )
+        if scrolled["honoured"] != scrolled["steps"]:
+            failures.append(
+                f"{where}: {scrolled['steps'] - scrolled['honoured']} of {scrolled['steps']} "
+                "scroll requests were not honoured exactly"
+            )
+        if before["height"] != after["height"]:
+            failures.append(
+                f"{where}: the document changed height while revealing "
+                f"({before['height']} -> {after['height']})"
+            )
+        if before["offsets"] != after["offsets"]:
+            failures.append(f"{where}: revealing moved a section")
+        if before["boxes"] != after["boxes"]:
+            failures.append(f"{where}: a reveal resized a section's box")
+        if before["hiddenOnScreen"]:
+            failures.append(
+                f"{where}: {before['hiddenOnScreen']} sections were hidden while already on screen"
+            )
+        if scrolled["frames"] < 30:
+            failures.append(f"{where}: only {scrolled['frames']} frames sampled")
+        elif scrolled["frameP95"] is not None and scrolled["frameP95"] > 34:
+            failures.append(f"{where}: frame p95 {scrolled['frameP95']} ms while scrolling")
+
+        if reduced_motion:
+            if before["marked"] or after["marked"]:
+                failures.append(f"{where}: sections were staged for entry under reduced motion")
+        else:
+            if after["marked"] and after["revealed"] != after["marked"]:
+                failures.append(
+                    f"{where}: {after['marked'] - after['revealed']} sections never arrived; "
+                    "content that scrolling cannot reveal is content that is gone"
+                )
+
+    return report, failures
+
+
+CONSOLE_PROBE = """
+/*
+ * A clean console, proved the only way it can be: by owning the console
+ * *before* the page's own scripts exist.
+ *
+ * The document is re-parsed inside a same-origin iframe that is instrumented
+ * while it is still `about:blank`, so every warning, error and unhandled
+ * rejection any module produces passes through a counter installed before that
+ * module ran. Reading the browser's log after the fact would miss anything
+ * logged before the harness attached, which is precisely the interesting part.
+ */
+const html = arguments[0];
+
+return (async () => {
+
+const frame = document.createElement('iframe');
+frame.style.cssText = 'display:block;border:0;width:1200px;height:900px';
+document.body.replaceChildren(frame);
+
+const view = frame.contentWindow;
+const doc = frame.contentDocument;
+const noise = [];
+
+for (const level of ['error', 'warn']) {
+    const original = view.console[level].bind(view.console);
+    view.console[level] = (...args) => {
+        noise.push([level, args.map((arg) => String(arg)).join(' ').slice(0, 200)]);
+        return original(...args);
+    };
+}
+
+view.addEventListener('error', (event) => {
+    noise.push(['uncaught', String(event.message || event.error).slice(0, 200)]);
+});
+view.addEventListener('unhandledrejection', (event) => {
+    noise.push(['rejection', String(event.reason).slice(0, 200)]);
+});
+
+doc.open();
+doc.write(html);
+doc.close();
+
+/* Long enough for the idle-scheduled hero, its dynamic import and a few frames. */
+await new Promise((resolve) => view.setTimeout(resolve, 4000));
+
+const result = {
+    noise,
+    hero: (() => {
+        const slot = doc.querySelector('[data-facet-hero-visual]');
+        return slot === null ? null : slot.dataset.facetHero || null;
+    })(),
+    canvases: doc.querySelectorAll('[data-facet-hero-visual] canvas').length,
+    ribbonsLive: doc.querySelectorAll("[data-facet-ribbon='live']").length,
+    ribbons: doc.querySelectorAll('[data-facet-ribbon]').length,
+    staged: doc.querySelectorAll('[data-facet-reveal-section]').length,
+    cards: doc.querySelectorAll('.facet-card').length,
+    text: doc.body.innerText.replace(/\\s+/g, ' ').trim().length,
+};
+
+frame.remove();
+
+return result;
+})();
+"""
+
+
+def console_and_fallback(
+    session: str,
+    base_url: str,
+    routes: list[str],
+    profile: str,
+) -> tuple[list[dict[str, object]], list[str]]:
+    """Runs every route with the console owned, and prices the chosen profile.
+
+    `profile` names what the browser was configured to be for this run:
+    `normal`, `no-webgl`, `low-tier` or `reduced-motion`. The hero's expected
+    resting state follows from it, and so does whether any enhancement is
+    allowed to have mounted at all.
+    """
+    failures: list[str] = []
+    report: list[dict[str, object]] = []
+
+    webdriver("POST", f"/session/{session}/window/rect", {"width": 1440, "height": 1000})
+
+    for route in routes:
+        webdriver("POST", f"/session/{session}/url", {"url": base_url + route})
+        html = execute(
+            session,
+            "return fetch(arguments[0]).then((response) => response.text());",
+            [base_url + route],
+        )
+        result = execute(session, CONSOLE_PROBE, [html])
+        result["route"] = route
+        result["profile"] = profile
+        report.append(result)
+
+        where = f"console ({profile}) {route}"
+
+        for level, message in result["noise"]:
+            failures.append(f"{where}: {level} — {message}")
+
+        # A floor, not a length budget: this catches a page that rendered
+        # nothing, and must not fail a legitimately terse one — an authorisation
+        # refusal is a short page and a correct one.
+        if result["text"] < 100:
+            failures.append(f"{where}: the page rendered {result['text']} characters of text")
+
+        if route == "/":
+            if result["hero"] is None:
+                failures.append(f"{where}: the home page lost its hero slot")
+            elif profile == "normal":
+                if result["hero"] != "live":
+                    failures.append(f"{where}: the hero settled on '{result['hero']}' on a capable browser")
+            else:
+                # Every degraded profile resolves the same way: the accepted
+                # static visual, untouched, and no canvas at all.
+                if result["hero"] != "static":
+                    failures.append(f"{where}: the hero settled on '{result['hero']}', not the static fallback")
+                if result["canvases"] != 0:
+                    failures.append(f"{where}: {result['canvases']} canvases survived the fallback")
+
+            if profile == "reduced-motion":
+                if result["ribbonsLive"]:
+                    failures.append(f"{where}: {result['ribbonsLive']} ribbons autoplayed under reduced motion")
+                if result["staged"]:
+                    failures.append(f"{where}: {result['staged']} sections were staged under reduced motion")
+            elif result["ribbons"] and not result["ribbonsLive"]:
+                failures.append(f"{where}: the skill ribbons never started")
+
+    return report, failures
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8765")
@@ -253,13 +1335,47 @@ def main() -> int:
     parser.add_argument("--login-password")
     parser.add_argument("--contact-states", action="store_true")
     parser.add_argument("--hero-lifecycle", action="store_true")
+    parser.add_argument("--card-interaction", action="store_true")
+    parser.add_argument("--reduced-motion", action="store_true")
+    parser.add_argument("--pointer", choices=["fine", "coarse", "default"], default="default")
+    parser.add_argument("--ribbons", action="store_true")
+    parser.add_argument("--ribbon-seconds", type=int, default=180)
+    parser.add_argument("--transitions", action="store_true")
+    parser.add_argument("--console", action="store_true")
+    parser.add_argument("--no-webgl", action="store_true")
+    parser.add_argument("--low-tier", action="store_true")
     options = parser.parse_args()
 
     output = Path(options.output)
     output.mkdir(parents=True, exist_ok=True)
     firefox_options: dict[str, object] = {"args": ["-headless"]}
+    prefs: dict[str, object] = {}
     if options.no_js:
-        firefox_options["prefs"] = {"javascript.enabled": False}
+        prefs["javascript.enabled"] = False
+    if options.reduced_motion:
+        # Firefox's own reduced-motion switch: this is the real media query,
+        # not a class the page was asked to pretend with.
+        prefs["ui.prefersReducedMotion"] = 1
+    if options.no_webgl:
+        # The real refusal, not a stubbed one: Firefox declines to create any
+        # WebGL context, exactly as it would on a machine with no usable driver.
+        prefs["webgl.disabled"] = True
+    if options.low_tier:
+        # The skin's low-tier signal reads `navigator.hardwareConcurrency`.
+        # Capping it is how a four-core machine is simulated on a twelve-core one.
+        prefs["dom.maxHardwareConcurrency"] = 2
+    if options.pointer != "default":
+        # Headless Firefox reports *no* pointer capabilities at all, so
+        # `(hover: hover)`, `(pointer: fine)` and `(pointer: coarse)` are all
+        # false and any rule gated on one of them silently never applies. A
+        # gate that did not say which device it was standing in for would be
+        # testing a machine no reader owns. 6 is fine + hover (a mouse); 1 is
+        # coarse without hover (a finger).
+        capability = 6 if options.pointer == "fine" else 1
+        prefs["ui.primaryPointerCapabilities"] = capability
+        prefs["ui.allPointerCapabilities"] = capability
+    if prefs:
+        firefox_options["prefs"] = prefs
 
     value = webdriver("POST", "/session", {
         "capabilities": {"alwaysMatch": {
@@ -315,6 +1431,49 @@ def main() -> int:
                 failures.append("contact error state did not expose all server-side validation feedback")
             if form_state["disabled"][2] != "not-allowed":
                 failures.append("disabled control state is not visibly non-interactive")
+
+        if options.card_interaction:
+            cards, card_failures = card_interaction(
+                session, options.base_url, options.reduced_motion, options.pointer
+            )
+            suffix = f"-{options.pointer}" + ("-reduced-motion" if options.reduced_motion else "")
+            (output / f"cards{suffix}.json").write_text(json.dumps(cards, indent=2) + "\n")
+            failures.extend(card_failures)
+
+        if options.ribbons:
+            names = json.loads(Path("content/skills.json").read_text())["skills"]
+            watched, ribbon_failures = ribbons(
+                session,
+                options.base_url,
+                options.ribbon_seconds,
+                [skill["name"] for skill in names],
+                options.reduced_motion,
+                options.no_js,
+            )
+            suffix = "-reduced-motion" if options.reduced_motion else ("-nojs" if options.no_js else "")
+            (output / f"ribbons{suffix}.json").write_text(json.dumps(watched, indent=2) + "\n")
+            failures.extend(ribbon_failures)
+
+        if options.transitions:
+            moved, transition_failures = transitions(
+                session, options.base_url, options.routes, options.reduced_motion
+            )
+            suffix = "-reduced-motion" if options.reduced_motion else ""
+            (output / f"transitions{suffix}.json").write_text(json.dumps(moved, indent=2) + "\n")
+            failures.extend(transition_failures)
+
+        if options.console:
+            profile = (
+                "no-webgl" if options.no_webgl
+                else "low-tier" if options.low_tier
+                else "reduced-motion" if options.reduced_motion
+                else "normal"
+            )
+            logged, console_failures = console_and_fallback(
+                session, options.base_url, options.routes, profile
+            )
+            (output / f"console-{profile}.json").write_text(json.dumps(logged, indent=2) + "\n")
+            failures.extend(console_failures)
 
         if options.hero_lifecycle:
             lifecycle, lifecycle_failures = hero_lifecycle(session, options.base_url)

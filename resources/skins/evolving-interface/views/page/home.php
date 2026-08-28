@@ -96,9 +96,9 @@ ob_start();
         <p class="mt-6 text-ink-muted"><?= $view->text($profile->summary()) ?></p>
 
         <?php if ($focusAreas !== []): ?>
-        <ul class="mt-6 flex flex-wrap gap-2 text-sm facet-chip-list" aria-label="Focus areas">
+        <ul class="mt-6 flex flex-wrap gap-2 text-sm" aria-label="Focus areas">
             <?php foreach ($focusAreas as $focusArea): ?>
-            <li class="rounded border facet-border px-2 py-1 facet-chip"><?= $view->text($focusArea) ?></li>
+            <li class="rounded-full border border-hairline px-3 py-1 facet-chip"><?= $view->text($focusArea) ?></li>
             <?php endforeach; ?>
         </ul>
         <?php endif; ?>
@@ -136,7 +136,7 @@ ob_start();
 <section class="mt-16" aria-labelledby="featured-projects">
     <h2 id="featured-projects" class="text-2xl font-semibold tracking-tight">Selected work</h2>
 
-    <ul class="mt-6 grid gap-6 sm:grid-cols-2 facet-card-grid">
+    <ul class="mt-6 grid gap-6 sm:grid-cols-2" data-facet-card-grid>
         <?php foreach ($projects as $project): ?>
         <?php
         $projectPeriod = $project->period();
@@ -147,10 +147,22 @@ ob_start();
         // neither, the line is not rendered at all rather than left empty.
         $hasMeta = $projectStatus->isSubstantiated() || $projectPeriod !== null;
         ?>
-        <li class="rounded border facet-border p-5 facet-card">
+        <?php
+        /*
+         * Geometry, spacing, radius and hairline are utilities: they are
+         * ordinary layout and belong where the card is written. `relative` is
+         * load-bearing rather than decorative — it is the containing block the
+         * card's one link stretches over, which is what makes the whole card a
+         * pointer target without a second link or a scripted navigation.
+         *
+         * `facet-card` stays a marker for the material only: the layered
+         * surface, the depth it answers a pointer with, and the overlay.
+         */
+        ?>
+        <li class="relative rounded-card border border-hairline p-card facet-card">
             <article>
                 <h3 class="text-lg font-medium">
-                    <a class="facet-link hover:underline" href="<?= $view->url('/projects/' . $project->slug()) ?>">
+                    <a class="facet-link facet-card__link hover:underline" href="<?= $view->url('/projects/' . $project->slug()) ?>">
                         <?= $view->text($project->name()) ?>
                     </a>
                 </h3>
@@ -194,20 +206,47 @@ ob_start();
 <section class="mt-16" aria-labelledby="skills">
     <h2 id="skills" class="text-2xl font-semibold tracking-tight">Skills</h2>
 
+    <?php
+    /*
+     * One ribbon per canonical category.
+     *
+     * What the server sends is a plain wrapping list of every skill in the
+     * category, exactly once, inside a labelled section — the same document
+     * this page has always sent, and the whole of it. The ribbon is what a
+     * runtime may later make of that list: it measures the set, repeats it
+     * enough times to fill the viewport, and lets CSS translate the strip at a
+     * constant speed. Nothing about that is required to read the page.
+     *
+     * `$ribbonIndex` only alternates the direction of travel, so adjacent
+     * ribbons do not read as one sliding block. It is presentation and carries
+     * no claim about the skills it moves.
+     */
+    $ribbonIndex = 0;
+    ?>
     <div class="mt-6 space-y-6">
         <?php foreach (SkillCategory::cases() as $category): ?>
         <?php $categorySkills = $skillsByCategory[$category->value] ?? []; ?>
         <?php if ($categorySkills !== []): ?>
+        <?php $ribbonDirection = $ribbonIndex % 2 === 0 ? 'forward' : 'reverse'; ?>
         <section aria-labelledby="skills-<?= $view->attr($category->value) ?>">
             <h3 id="skills-<?= $view->attr($category->value) ?>" class="text-sm font-medium uppercase tracking-wide facet-ink-subtle">
                 <?= $view->text($category->value) ?>
             </h3>
-            <ul class="mt-2 flex flex-wrap gap-2 text-sm facet-chip-list">
-                <?php foreach ($categorySkills as $skill): ?>
-                <li class="rounded border facet-border px-2 py-1 facet-chip"><?= $view->text($skill->name()) ?></li>
-                <?php endforeach; ?>
-            </ul>
+            <div
+                class="mt-2 facet-ribbon"
+                data-facet-ribbon
+                data-facet-ribbon-direction="<?= $view->attr($ribbonDirection) ?>"
+            >
+                <div class="flex flex-wrap gap-2 facet-ribbon__track" data-facet-ribbon-track>
+                    <ul class="flex flex-wrap gap-2 text-sm" data-facet-ribbon-set>
+                        <?php foreach ($categorySkills as $skill): ?>
+                        <li class="rounded-full border border-hairline px-3 py-1 facet-chip"><?= $view->text($skill->name()) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
         </section>
+        <?php $ribbonIndex++; ?>
         <?php endif; ?>
         <?php endforeach; ?>
     </div>

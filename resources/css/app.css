@@ -39,6 +39,16 @@
 
   --tracking-display: var(--facet-tracking-tight, -0.03em);
 
+  /*
+   * Card geometry. The radius and the padding of a card are ordinary layout,
+   * so they are stated in the template as utilities rather than in a skin
+   * component rule — but the *values* stay the skin's, because `inline`
+   * resolves them through the same `--facet-*` variables the theme swap
+   * drives. A skin that ships no scale still gets a sane card.
+   */
+  --radius-card: var(--facet-radius-lg, 1rem);
+  --spacing-card: var(--facet-space-5, 1.25rem);
+
   --color-ink: var(--facet-ink);
   --color-ink-muted: var(--facet-ink-muted);
   --color-ink-subtle: var(--facet-ink-subtle);

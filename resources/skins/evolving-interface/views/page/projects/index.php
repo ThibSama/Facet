@@ -33,7 +33,7 @@ ob_start();
 <h1 class="text-3xl font-semibold tracking-tight">Projects</h1>
 
 <?php if ($projects !== []): ?>
-<ul class="mt-8 grid gap-6 sm:grid-cols-2 facet-card-grid facet-project-grid">
+<ul class="mt-8 grid gap-6 sm:grid-cols-2" data-facet-card-grid>
     <?php foreach ($projects as $project): ?>
     <?php
     $slug = $project->slug()->value();
@@ -57,7 +57,17 @@ ob_start();
     $media = $project->media();
     $mediaRatio = '16 / 9';
     ?>
-    <li class="flex flex-col rounded border facet-border p-5 facet-card facet-project-card">
+    <?php
+    /*
+     * The card's box is stated here, in utilities, because it is ordinary
+     * layout. `relative` is the one that carries weight: it is the containing
+     * block the heading's link stretches over, so a pointer or a tap anywhere
+     * on the card reaches the same canonical `/projects/<slug>` URL the link
+     * already had. Nothing is navigated by script, and the card holds exactly
+     * one interactive element, so there is no nested target to be trapped in.
+     */
+    ?>
+    <li class="relative flex flex-col rounded-card border border-hairline p-card facet-card facet-project-card">
         <article aria-labelledby="<?= $view->attr($headingId) ?>" class="flex h-full flex-col">
             <?php
             /*
@@ -70,7 +80,7 @@ ob_start();
             ?>
 
             <h2 id="<?= $view->attr($headingId) ?>" class="mt-4 text-lg font-medium">
-                <a class="facet-link hover:underline" href="<?= $view->url($href) ?>">
+                <a class="facet-link facet-card__link hover:underline" href="<?= $view->url($href) ?>">
                     <?= $view->text($project->name()) ?>
                 </a>
             </h2>

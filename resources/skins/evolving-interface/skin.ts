@@ -1,13 +1,18 @@
 import './skin.css';
+import { mountCards } from './cards';
+import { mountRibbon } from './ribbons';
+import { mountReveal } from './reveal';
 
 /**
  * evolving-interface — skin runtime.
  *
- * Two jobs, both decoration. It marks the document with the skin that rendered
- * it, so the isolation contract is observable in the DOM; and it decides
- * whether the hero's signature visual is worth running, loading it only when
- * the answer is yes. Like the shared runtime it decorates server-rendered
- * markup and never produces it.
+ * It marks the document with the skin that rendered it, so the isolation
+ * contract is observable in the DOM; it decides whether the hero's signature
+ * visual is worth running, loading it only when the answer is yes; and it
+ * hands the card grid its pointer-reactive light. Like the shared runtime it
+ * decorates server-rendered markup and never produces it, and every one of
+ * those decorations is additive: the document is complete before any of them
+ * run and stays complete if none of them do.
  *
  * Everything expensive lives behind a dynamic import. A page with no hero slot
  * — every route but the home page — resolves the guard and stops, so it never
@@ -16,6 +21,21 @@ import './skin.css';
 const SKIN_ID = 'evolving-interface';
 
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
+
+/**
+ * A fine pointer that can actually hover. Coarse pointers are excluded because
+ * there is nothing for them to track: a tap has one position and no path.
+ */
+const FINE_POINTER = '(hover: hover) and (pointer: fine)';
+
+/*
+ * The skin's single reduced-motion query list, opened once and held for the
+ * life of the document. It is retained rather than re-queried at teardown
+ * because a listener whose reference is not held cannot be removed, and it is
+ * the *only* list for this query so that a change event has exactly one place
+ * to arrive.
+ */
+const motion = typeof window.matchMedia === 'function' ? window.matchMedia(REDUCED_MOTION) : null;
 
 /**
  * The slot's own record of what happened to it, and the guard against a second
@@ -32,8 +52,17 @@ function markSkin(root: Document = document): void {
   root.documentElement.dataset.facetSkin = SKIN_ID;
 }
 
+/**
+ * Whether the visitor has asked for less movement.
+ *
+ * It reads the one query list the skin retains rather than opening another.
+ * Two lists for the same query answer identically, so the difference is not
+ * the answer — it is that a change delivered to one of them is invisible to
+ * the other, and "which list is the live one" is exactly the sort of question
+ * a teardown must never have to ask.
+ */
 function prefersReducedMotion(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia(REDUCED_MOTION).matches;
+  return motion !== null && motion.matches;
 }
 
 /**
@@ -60,6 +89,73 @@ function isLowTier(): boolean {
 
 function setState(slot: HTMLElement, state: HeroState): void {
   slot.dataset.facetHero = state;
+}
+
+/**
+ * The skin's teardown register.
+ *
+ * Every enhancement this file mounts pushes one function here, and the page
+ * owns exactly one `pagehide` listener and exactly one reduced-motion listener
+ * no matter how many of them mounted. That is not only tidiness: a per-effect
+ * listener would make "how many listeners does a mounted page hold" a function
+ * of which effects happened to qualify, and an invariant nobody can state is
+ * an invariant nobody can test. One and one is testable, and
+ * `tools/firefox-audit.py --hero-lifecycle` tests it in a real browser.
+ *
+ * Teardown is deterministic rather than left to collection: a bfcache restore
+ * would otherwise resume work nobody is watching, and Firefox fires `pagehide`
+ * where `unload` would have cost the page its cache entry. Turning reduced
+ * motion on mid-visit is a request to stop, so it is honoured the same way —
+ * every effect is undone and the server-rendered document is what remains.
+ */
+const teardowns: Array<() => void> = [];
+
+let released = false;
+
+const onMotionChange = (event: MediaQueryListEvent): void => {
+  if (event.matches) {
+    release();
+  }
+};
+
+/**
+ * Undoes every mounted effect exactly once.
+ *
+ * `released` makes the path idempotent: whichever signal arrives first, and
+ * however often either repeats, each effect is destroyed exactly once and the
+ * listeners that could deliver a second signal are gone.
+ */
+const release = (): void => {
+  if (released) {
+    return;
+  }
+
+  released = true;
+  window.removeEventListener('pagehide', release);
+  motion?.removeEventListener('change', onMotionChange);
+
+  for (const teardown of teardowns.splice(0)) {
+    teardown();
+  }
+};
+
+/**
+ * Registers one effect's teardown, arming the page's two lifecycle listeners
+ * the first time anything does.
+ */
+function onRelease(teardown: () => void): void {
+  if (released) {
+    teardown();
+
+    return;
+  }
+
+  if (teardowns.length === 0) {
+    window.addEventListener('pagehide', release);
+    motion?.addEventListener('change', onMotionChange);
+  }
+
+  teardowns.push(teardown);
 }
 
 /**
@@ -110,44 +206,15 @@ async function enhanceHero(root: Document = document): Promise<void> {
     setState(slot, 'live');
 
     /*
-     * Teardown is deterministic rather than left to collection: a bfcache
-     * restore would otherwise resume a loop nobody is watching, and Firefox
-     * fires `pagehide` where `unload` would have cost the page its cache
-     * entry. Turning reduced motion on mid-visit is a request to stop, so it
-     * is honoured the same way.
-     *
-     * Both signals converge on one `release`, and every reference it needs to
-     * unregister itself is held here for the lifetime of this mounted hero:
-     * the query list is queried once, and the change handler is a named
-     * function rather than an anonymous argument, because a listener whose
-     * reference is not retained cannot be removed. `released` makes the path
-     * idempotent — whichever signal arrives first, and however often either
-     * repeats, the effect is destroyed exactly once.
+     * The hero hands its teardown to the skin's register rather than owning a
+     * listener of its own. Destroying the effect and restoring the slot's
+     * accepted static state are one step, so there is no order in which the
+     * canvas is gone but the slot still claims to be live.
      */
-    const motion = typeof window.matchMedia === 'function' ? window.matchMedia(REDUCED_MOTION) : null;
-
-    let released = false;
-
-    const onMotionChange = (event: MediaQueryListEvent): void => {
-      if (event.matches) {
-        release();
-      }
-    };
-
-    const release = (): void => {
-      if (released) {
-        return;
-      }
-
-      released = true;
-      window.removeEventListener('pagehide', release);
-      motion?.removeEventListener('change', onMotionChange);
+    onRelease((): void => {
       handle.destroy();
       setState(slot, 'static');
-    };
-
-    window.addEventListener('pagehide', release);
-    motion?.addEventListener('change', onMotionChange);
+    });
   } catch {
     setState(slot, 'static');
   }
@@ -172,8 +239,82 @@ function whenIdle(task: () => void): void {
   window.setTimeout(task, 200);
 }
 
+/**
+ * Gives every card grid on the page its pointer-reactive light.
+ *
+ * Three conditions have to hold, and each of them describes a reader rather
+ * than a device: there has to be a grid, the pointer has to be one that can
+ * hover along a path, and motion has to be welcome. When any of them fails the
+ * cards keep the full CSS treatment they were served with — the lift, the
+ * accent border, the raised shadow and a light at a fixed origin — so
+ * declining to run costs the card nothing but the tracking.
+ */
+function enhanceCards(root: Document = document): void {
+  const grids = root.querySelectorAll<HTMLElement>('[data-facet-card-grid]');
+
+  if (grids.length === 0 || prefersReducedMotion()) {
+    return;
+  }
+
+  if (typeof window.matchMedia === 'function' && !window.matchMedia(FINE_POINTER).matches) {
+    return;
+  }
+
+  for (const grid of grids) {
+    const cards = mountCards(grid);
+
+    onRelease((): void => cards.destroy());
+  }
+}
+
+/**
+ * Turns each server-rendered skill list into a continuous ribbon.
+ *
+ * Reduced motion is the only guard, and it is the right one: a ribbon is
+ * motion and nothing else. Every other reader gets it, on a touch screen as
+ * much as on a desktop, because the strip travels on its own and needs no
+ * hover to be readable. A ribbon that declines to mount is simply the wrapping
+ * list of chips the server sent — complete, and not missing anything.
+ */
+function enhanceRibbons(root: Document = document): void {
+  if (prefersReducedMotion()) {
+    return;
+  }
+
+  for (const ribbon of root.querySelectorAll<HTMLElement>('[data-facet-ribbon]')) {
+    const mounted = mountRibbon(ribbon);
+
+    if (mounted !== null) {
+      onRelease((): void => mounted.destroy());
+    }
+  }
+}
+
+/**
+ * Lets each section below the fold arrive rather than simply be there.
+ *
+ * The hero is excluded by name. It is the page's signature moment and it is
+ * already on screen when this runs; fading it in would be an animation played
+ * at the one reader who is guaranteed not to be waiting for it.
+ */
+function enhanceReveal(root: Document = document): void {
+  if (prefersReducedMotion()) {
+    return;
+  }
+
+  const sections = [...root.querySelectorAll<HTMLElement>('.facet-main > section:not(.facet-hero)')];
+  const mounted = mountReveal(sections);
+
+  if (mounted !== null) {
+    onRelease((): void => mounted.destroy());
+  }
+}
+
 function enhance(root: Document = document): void {
   markSkin(root);
+  enhanceCards(root);
+  enhanceRibbons(root);
+  enhanceReveal(root);
   whenIdle(() => void enhanceHero(root));
 }
 
@@ -183,4 +324,14 @@ if (document.readyState === 'loading') {
   enhance();
 }
 
-export { SKIN_ID, enhance, enhanceHero, isLowTier, markSkin, prefersReducedMotion };
+export {
+  SKIN_ID,
+  enhance,
+  enhanceCards,
+  enhanceHero,
+  enhanceReveal,
+  enhanceRibbons,
+  isLowTier,
+  markSkin,
+  prefersReducedMotion,
+};

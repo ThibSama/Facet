@@ -7,6 +7,10 @@ namespace Facet\Http;
 use Facet\Asset\AssetBundle;
 use Facet\Asset\AssetManager;
 use Facet\Config\Config;
+use Facet\Contact\ContactMessageStore;
+use Facet\Contact\ContactMessageStoreFactory;
+use Facet\Contact\ContactStoreException;
+use Facet\Contact\ContactValidator;
 use Facet\Content\Corpus;
 use Facet\Content\CorpusLoader;
 use Facet\Content\Project;
@@ -14,6 +18,10 @@ use Facet\Navigation\Navigation;
 use Facet\Routing\HttpMethod;
 use Facet\Routing\RouteCatalog;
 use Facet\Routing\RouteDefinition;
+use Facet\Security\CsrfGuard;
+use Facet\Security\RateLimiter;
+use Facet\Session\ArraySession;
+use Facet\Session\Session;
 use Facet\Skin\Selection\DefaultSkinSelectionPolicy;
 use Facet\Skin\Selection\SkinSelection;
 use Facet\Skin\Selection\SkinSelectionContext;
@@ -21,7 +29,9 @@ use Facet\Skin\Selection\SkinSelectionPolicy;
 use Facet\Skin\SkinDefinition;
 use Facet\Skin\SkinRegistry;
 use Facet\Skin\SkinRenderer;
+use Facet\Support\Clock;
 use Facet\Support\Slug;
+use Facet\Support\SystemClock;
 use Throwable;
 
 /**
@@ -54,6 +64,16 @@ final class Application
 
     private ErrorPresenter $errors;
 
+    private Session $session;
+
+    private ContactMessageStore $messages;
+
+    private ContactValidator $validator;
+
+    private CsrfGuard $csrf;
+
+    private RateLimiter $limiter;
+
     private ?Corpus $corpus = null;
 
     private function __construct(
@@ -64,7 +84,10 @@ final class Application
         AssetManager $assets,
         SkinRenderer $renderer,
         Router $router,
-        ErrorPresenter $errors
+        ErrorPresenter $errors,
+        Session $session,
+        ContactMessageStore $messages,
+        RateLimiter $limiter
     ) {
         $this->basePath = $basePath;
         $this->config = $config;
@@ -74,14 +97,31 @@ final class Application
         $this->renderer = $renderer;
         $this->router = $router;
         $this->errors = $errors;
+        $this->session = $session;
+        $this->messages = $messages;
+        $this->limiter = $limiter;
+        $this->validator = new ContactValidator();
+        $this->csrf = new CsrfGuard();
     }
 
+    /**
+     * The session, the message store and the clock are parameters for the same
+     * reason the Request's arrays are: a component that reaches for a global —
+     * `$_SESSION`, a PDO connection, `time()` — cannot be exercised for the
+     * cases that matter. Every default is the safe one, so an entrypoint that
+     * passes none of them gets an application that renders every public page
+     * and refuses every submission rather than one that accepts submissions on
+     * an absent guard.
+     */
     public static function boot(
         string $basePath,
         ?Config $config = null,
         ?SkinRegistry $registry = null,
         ?SkinSelectionPolicy $policy = null,
-        ?Router $router = null
+        ?Router $router = null,
+        ?Session $session = null,
+        ?ContactMessageStore $messages = null,
+        ?Clock $clock = null
     ): self {
         $basePath = rtrim(str_replace('\\', '/', $basePath), '/');
         $config ??= Config::fromEnvironment($basePath);
@@ -96,7 +136,13 @@ final class Application
             AssetManager::fromConfig($config, self::manifestPath($basePath)),
             $renderer,
             $router ?? Router::fromCatalog(),
-            new ErrorPresenter($renderer, $config->isDebug())
+            new ErrorPresenter($renderer, $config->isDebug()),
+            // A request-scoped session that persists nowhere is the fail-closed
+            // default: tokens minted for it are never seen twice, so the CSRF
+            // check refuses rather than waves a POST through.
+            $session ?? new ArraySession(),
+            $messages ?? ContactMessageStoreFactory::fromConfig($config),
+            new RateLimiter($clock ?? new SystemClock())
         );
     }
 
@@ -232,11 +278,35 @@ final class Application
         };
     }
 
+    /** The flash key a successful submission leaves for the redirected GET. */
+    private const CONTACT_FLASH = 'contact.flash';
+
+    /** Its only value. A flash is a signal, not a place to keep a message. */
+    private const CONTACT_FLASH_SENT = 'sent';
+
+    /** The throttle bucket contact submissions are counted in. */
+    private const CONTACT_THROTTLE = 'contact';
+
     /**
-     * The contact form renders on GET. Submission handling needs a message
-     * store, which is a later checkpoint — but the method distinction is real
-     * today, so POST is answered explicitly instead of falling through to the
-     * GET rendering.
+     * The field a person never fills in and an indiscriminate bot always does.
+     *
+     * Named for something a form plausibly asks for rather than `honeypot`,
+     * because the whole mechanism is that the submitter cannot tell it apart
+     * from a real control.
+     */
+    private const CONTACT_HONEYPOT = 'website';
+
+    /**
+     * GET renders the form; POST decides what to do with a submission.
+     *
+     * The order of the checks below is the design, not an accident. Proof of
+     * intent comes first, because a request that cannot show it should not
+     * reach anything that costs work or leaves a trace. Rate limiting comes
+     * next, so a client that keeps trying is bounded whatever it is sending.
+     * The honeypot follows, because a bot deserves the cheapest possible exit.
+     * Validation is fourth, and storage — the only step with an effect that
+     * outlives the request — is last, so nothing before it can leave a row
+     * behind.
      *
      * @param array<string, mixed> $shared
      */
@@ -246,16 +316,151 @@ final class Application
         SkinSelection $selection,
         array $shared
     ): Response {
-        if ($request->isMethod(HttpMethod::Post)) {
-            throw HttpException::notImplemented('Contact submissions are not stored yet.');
+        if (!$request->isMethod(HttpMethod::Post)) {
+            // A one-shot flash: read here and gone, so a second GET of the same
+            // URL shows the form rather than re-announcing a message that was
+            // already confirmed.
+            $sent = $this->session->pull(self::CONTACT_FLASH) === self::CONTACT_FLASH_SENT;
+
+            return $this->contactPage($route, $selection, $shared, $sent ? [
+                'notice' => [
+                    'kind' => 'success',
+                    // Receipt and storage, and not a word beyond it. Nothing
+                    // here emails, forwards or acknowledges anything, so a
+                    // promise to reply would be a promise no code keeps.
+                    'text' => 'Thank you — your message has been received and stored on this site.',
+                ],
+            ] : []);
         }
 
-        // The canonical profile is the page's only source of an alternative
-        // way to reach the author: the view must never write an address of its
-        // own, so it is handed the links rather than left to invent them.
-        return $this->page($route, $selection, $shared + [
+        if (!$this->csrf->isValid($this->session, $request->bodyParam(CsrfGuard::FIELD))) {
+            // Deterministic and total: a missing token, a stale token, a token
+            // from another session and a token that is merely wrong all end
+            // here, before validation, before throttling, before any write.
+            throw HttpException::forbidden('The contact submission carried no valid CSRF token.');
+        }
+
+        $decision = $this->limiter->attempt($this->session, self::CONTACT_THROTTLE);
+
+        // Whatever the outcome below, the submitted values are normalised once
+        // so a form that comes back carries what the server actually read.
+        $validation = $this->validator->validate($request->body());
+
+        if (!$decision->isAllowed()) {
+            return $this->contactPage($route, $selection, $shared, [
+                'values' => $validation->values(),
+                'notice' => [
+                    'kind' => 'error',
+                    'text' => sprintf(
+                        'That is several messages in a short time. Please try again in about %d minutes.',
+                        max(1, (int) ceil($decision->retryAfterSeconds() / 60))
+                    ),
+                ],
+            ], Response::STATUS_TOO_MANY_REQUESTS);
+        }
+
+        if (trim($request->bodyParam(self::CONTACT_HONEYPOT, '') ?? '') !== '') {
+            // Answered exactly as a real submission is — same status, same
+            // redirect, same flash. A bot that could tell the difference would
+            // simply stop filling the field in.
+            return $this->acceptedContactRedirect($route);
+        }
+
+        if (!$validation->isValid()) {
+            return $this->contactPage($route, $selection, $shared, [
+                'values' => $validation->values(),
+                'errors' => $validation->errors(),
+                'notice' => [
+                    'kind' => 'error',
+                    'text' => 'Your message was not sent. Please correct the fields marked below.',
+                ],
+            ], Response::STATUS_UNPROCESSABLE_CONTENT);
+        }
+
+        $submission = $validation->submission();
+
+        // Unreachable while isValid() and submission() agree; asserted rather
+        // than assumed, because "valid but absent" must never become an insert.
+        if ($submission === null) {
+            throw HttpException::internal('A valid contact submission carried no message.');
+        }
+
+        try {
+            $this->messages->store($submission);
+        } catch (ContactStoreException $error) {
+            // The honest failure. No flash is set and no redirect is issued, so
+            // the visitor keeps what they typed and is told plainly that it was
+            // not received — the one thing worse than losing a message is
+            // claiming to have kept it. The cause never reaches the page.
+            return $this->contactPage($route, $selection, $shared, [
+                'values' => $validation->values(),
+                'notice' => [
+                    'kind' => 'error',
+                    'text' => 'Your message could not be stored, so it has not been received. '
+                        . 'Please try again shortly, or use one of the links below.',
+                ],
+            ], Response::STATUS_INTERNAL_SERVER_ERROR);
+        }
+
+        return $this->acceptedContactRedirect($route);
+    }
+
+    /**
+     * The Post/Redirect/Get half of a successful submission.
+     *
+     * 303 rather than 302 so the redirected request is a GET by specification
+     * and not by browser convention, which is what makes a refresh of the
+     * landing page a re-GET instead of a re-POST.
+     *
+     * The token is rotated here, so the exact secret that authorised this
+     * insert cannot authorise another. The confirmation travels as a session
+     * flash rather than as `?sent=1`: a query flag is something anyone can
+     * type, link to, or screenshot into a false confirmation, and it would
+     * announce a stored message where none exists.
+     */
+    private function acceptedContactRedirect(RouteDefinition $route): Response
+    {
+        $this->csrf->rotate($this->session);
+        $this->session->put(self::CONTACT_FLASH, self::CONTACT_FLASH_SENT);
+
+        return Response::redirect($route->path(), Response::STATUS_SEE_OTHER);
+    }
+
+    /**
+     * Renders the contact form in whatever state the handler decided.
+     *
+     * Every state goes through here, so the page cannot acquire a token in one
+     * branch and lose it in another: a form re-rendered after a failure is as
+     * submittable as the one that was first served.
+     *
+     * @param array<string, mixed>  $shared
+     * @param array<string, mixed>  $state  overrides for this rendering
+     */
+    private function contactPage(
+        RouteDefinition $route,
+        SkinSelection $selection,
+        array $shared,
+        array $state = [],
+        int $status = Response::STATUS_OK
+    ): Response {
+        $defaults = [
+            // The canonical profile is the page's only source of an
+            // alternative way to reach the author: the view must never write
+            // an address of its own, so it is handed the links rather than
+            // left to invent them.
             'profile' => $this->corpus()->profile(),
-        ]);
+            'csrfField' => CsrfGuard::FIELD,
+            'csrfToken' => $this->csrf->token($this->session),
+            'honeypotField' => self::CONTACT_HONEYPOT,
+            'values' => array_fill_keys(ContactValidator::FIELDS, ''),
+            'errors' => [],
+            'notice' => null,
+        ];
+
+        return Response::html(
+            $this->renderer->render($selection->skin(), $route->template(), $state + $defaults + $shared),
+            $status
+        );
     }
 
     /**

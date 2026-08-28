@@ -21,8 +21,11 @@ final class Response
     public const STATUS_FOUND = 302;
     public const STATUS_SEE_OTHER = 303;
     public const STATUS_BAD_REQUEST = 400;
+    public const STATUS_FORBIDDEN = 403;
     public const STATUS_NOT_FOUND = 404;
     public const STATUS_METHOD_NOT_ALLOWED = 405;
+    public const STATUS_UNPROCESSABLE_CONTENT = 422;
+    public const STATUS_TOO_MANY_REQUESTS = 429;
     public const STATUS_INTERNAL_SERVER_ERROR = 500;
     public const STATUS_NOT_IMPLEMENTED = 501;
 
@@ -37,6 +40,8 @@ final class Response
         403 => 'Forbidden',
         404 => 'Not Found',
         405 => 'Method Not Allowed',
+        422 => 'Unprocessable Content',
+        429 => 'Too Many Requests',
         500 => 'Internal Server Error',
         501 => 'Not Implemented',
     ];

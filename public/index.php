@@ -7,6 +7,7 @@ use Facet\Http\Application;
 use Facet\Http\Request;
 use Facet\Http\ResponseEmitter;
 use Facet\Http\StaticFile;
+use Facet\Session\PhpSession;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -38,11 +39,21 @@ if ($config->isProduction()) {
 ini_set('display_errors', $config->isDebug() ? '1' : '0');
 error_reporting(E_ALL);
 
+// The anonymous session the contact form's CSRF token, flash and throttle
+// window live in. Starting it here — and nowhere else — is what keeps the
+// session's side effects (a cookie, a file, $_SESSION) at the boundary while
+// the application above stays a pure function of its Request.
+//
+// A null start is a SAPI that cannot carry a session. It is not repaired: the
+// application falls back to a session that persists nowhere, so submissions are
+// refused for want of a token rather than accepted without one.
+$session = PhpSession::start(PhpSession::isSecureRequest($_SERVER));
+
 // The entrypoint's whole job: turn PHP's request arrays into a Request, hand it
 // to the application, and put the Response it returns on the wire. Routing,
 // skin selection, rendering and error disclosure all live behind that call.
 (new ResponseEmitter())->emit(
-    Application::boot($basePath, $config)->handle(
+    Application::boot($basePath, $config, null, null, null, $session)->handle(
         Request::fromGlobals($_SERVER, $_GET, $_POST, $_COOKIE)
     )
 );

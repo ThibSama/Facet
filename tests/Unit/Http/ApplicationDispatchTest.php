@@ -103,6 +103,12 @@ final class ApplicationDispatchTest extends TestCase
         }
     }
 
+    /**
+     * The two methods on one path really do take different branches. The POST
+     * here carries no CSRF token, so the branch it takes is the refusal — which
+     * is the point: an unproven POST must never be answered by quietly
+     * rendering the GET page as though nothing had been submitted.
+     */
     public function testGetAndPostOnTheSamePathTakeDifferentBranches(): void
     {
         $get = self::app()->handle(Request::create('GET', '/contact'));
@@ -111,7 +117,7 @@ final class ApplicationDispatchTest extends TestCase
         self::assertSame(200, $get->status());
         self::assertStringContainsString('method="post"', $get->body());
         self::assertNotSame($get->status(), $post->status(), 'POST must not silently render the GET page');
-        self::assertSame(Response::STATUS_NOT_IMPLEMENTED, $post->status());
+        self::assertSame(Response::STATUS_FORBIDDEN, $post->status());
     }
 
     public function testANonCanonicalPathRedirectsInsteadOfRenderingTwice(): void

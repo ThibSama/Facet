@@ -458,11 +458,12 @@ final class Phase2GateTest extends TestCase
             }
         }
 
-        // POST /contact is declared and deliberately unimplemented. It must
-        // say so with a status, not with a diagnostic.
+        // POST /contact is implemented, and this request carries no CSRF token
+        // and no session — the shape a cross-site submission arrives in. It
+        // must be refused with a status, not with a diagnostic.
         $posted = self::request('POST', '/contact');
 
-        self::assertSame(501, $posted['status']);
+        self::assertSame(403, $posted['status']);
 
         foreach ([self::root(), self::APP_KEY, 'Stack trace', 'Exception'] as $leak) {
             self::assertStringNotContainsString($leak, $posted['body'], 'POST /contact leaked ' . $leak);

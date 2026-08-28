@@ -4,26 +4,37 @@
  * evolving-interface — logical view "page.contact".
  *
  * A plain server-side form: a real action, a real method, no JavaScript. The
- * route declares GET and POST, and this document is the GET half of that
- * contract — the POST half is a later checkpoint, and until it exists the page
- * says so rather than implying a message goes anywhere.
+ * route declares GET and POST and both halves are now real — a submission is
+ * validated, defended and stored, and this document renders every state that
+ * can produce.
  *
- * Every control is built so the server can speak through it later without this
- * markup changing shape: each field owns a help element and an *empty* error
- * element, both already named in the input's `aria-describedby`. Filling the
- * error element is then the whole of rendering a validation failure — no ids
- * to invent, no attributes to add, no layout to redo.
+ * Nothing here decides anything. The token, the field values, the per-field
+ * errors and the notice are all handed down by the application; this file's
+ * entire job is to place them where a reader and a screen reader will find
+ * them. That division is what makes the security properties testable in one
+ * place instead of being spread across markup.
  *
- * The native constraints below are conveniences for the person typing, not a
- * boundary: nothing here is trusted, because nothing here is enforced by this
- * document. Validation is the server's job at the checkpoint that accepts the
- * submission.
+ * The structure the previous checkpoint set up is unchanged and is why this
+ * change is small: every field already owned a help element and an *empty*
+ * error element, both already named in the control's `aria-describedby`, so
+ * rendering a validation failure is filling an element that already exists.
+ *
+ * The native constraints below remain conveniences for the person typing and
+ * not a boundary: `required` and `type="email"` are enforced by nothing the
+ * server can see, and a submission that arrives without either is judged by
+ * exactly the same validator.
  *
  * Alternative ways to reach the author come from the canonical profile links
  * and nowhere else. No address this site cannot source is written here.
  *
  * @var \Facet\Html\ViewContext $view
  * @var \Facet\Content\Profile  $profile
+ * @var string                  $csrfField     name of the CSRF form field
+ * @var string                  $csrfToken     this session's token
+ * @var string                  $honeypotField name of the decoy field
+ * @var array<string, string>   $values        normalised values to redisplay
+ * @var array<string, string>   $errors        field name => reason
+ * @var array{kind: string, text: string}|null $notice form-level statement
  */
 
 declare(strict_types=1);
@@ -33,6 +44,10 @@ use Facet\Html\Html;
 $title = 'Contact';
 
 $profileLinks = $profile->links();
+
+$values = $values ?? [];
+$errors = $errors ?? [];
+$notice = $notice ?? null;
 
 /*
  * The fields, declared once and rendered by one loop, so a field cannot
@@ -47,7 +62,7 @@ $fields = [
         'label' => 'Name',
         'help' => 'How you would like to be addressed.',
         'element' => 'input',
-        'attributes' => ['type' => 'text', 'autocomplete' => 'name', 'autocapitalize' => 'words'],
+        'attributes' => ['type' => 'text', 'autocomplete' => 'name', 'autocapitalize' => 'words', 'maxlength' => 120],
     ],
     [
         'name' => 'email',
@@ -59,6 +74,7 @@ $fields = [
             'autocomplete' => 'email',
             'inputmode' => 'email',
             'spellcheck' => 'false',
+            'maxlength' => 254,
         ],
     ],
     [
@@ -66,16 +82,18 @@ $fields = [
         'label' => 'Subject',
         'help' => 'One line saying what the message is about.',
         'element' => 'input',
-        'attributes' => ['type' => 'text', 'autocomplete' => 'off'],
+        'attributes' => ['type' => 'text', 'autocomplete' => 'off', 'maxlength' => 200],
     ],
     [
         'name' => 'message',
         'label' => 'Message',
         'help' => 'The message itself. Plain text — no formatting is interpreted.',
         'element' => 'textarea',
-        'attributes' => ['rows' => 8, 'autocomplete' => 'off'],
+        'attributes' => ['rows' => 8, 'autocomplete' => 'off', 'maxlength' => 5000],
     ],
 ];
+
+$noticeClass = ($notice['kind'] ?? '') === 'success' ? 'facet-notice--success' : 'facet-notice--error';
 
 ob_start();
 
@@ -84,14 +102,34 @@ ob_start();
 
 <?php
 /*
- * The one thing this page must not do is imply a delivery it cannot perform.
- * POST /contact has no handler yet, so the state of the form is stated plainly
- * and the working alternatives are named in the same breath.
+ * What the form actually does, stated once and stated exactly. A message is
+ * received and kept where the author reads it; nothing is forwarded, emailed
+ * or acknowledged automatically, and the page says so rather than letting a
+ * visitor infer a delivery that does not happen.
  */
 ?>
 <p id="contact-status" class="mt-4 max-w-prose facet-ink-muted">
-    This form does not send anything yet. Until it does, the links below are the way to reach me.
+    What you write here is stored on this site, where I read it. Nothing is forwarded anywhere automatically,
+    so for anything urgent the links below are quicker.
 </p>
+
+<?php if (is_array($notice) && isset($notice['text']) && $notice['text'] !== ''): ?>
+<?php
+/*
+ * The form-level statement: the outcome of a submission, as opposed to the
+ * standing description above. `role="status"` and `aria-live="polite"` mean a
+ * screen reader announces it on the redirected page without the visitor
+ * having to go looking for it, and the element is placed before the form so
+ * the reading order matches the announcement.
+ */
+?>
+<p
+    class="mt-6 max-w-md rounded facet-notice <?= $view->attr($noticeClass) ?> px-4 py-3"
+    id="contact-notice"
+    role="status"
+    aria-live="polite"
+><?= $view->text($notice['text']) ?></p>
+<?php endif; ?>
 
 <form
     class="mt-8 max-w-md space-y-6"
@@ -99,45 +137,103 @@ ob_start();
     action="<?= $view->url('/contact') ?>"
     aria-describedby="contact-status"
 >
+    <?php
+    /*
+     * Proof that this submission was composed on this page, in this session.
+     * A hidden input rather than a header, because the form must work with no
+     * JavaScript at all — there is nothing here to set a header with.
+     */
+    ?>
+    <input type="hidden" name="<?= $view->attr($csrfField) ?>" value="<?= $view->attr($csrfToken) ?>">
+
     <?php foreach ($fields as $field): ?>
     <?php
     $fieldId = 'contact-' . $field['name'];
     $helpId = $fieldId . '-help';
     $errorId = $fieldId . '-error';
 
+    $error = isset($errors[$field['name']]) && is_string($errors[$field['name']])
+        ? $errors[$field['name']]
+        : '';
+
+    $value = isset($values[$field['name']]) && is_string($values[$field['name']])
+        ? $values[$field['name']]
+        : '';
+
     // Shared by both control kinds. `required` is a hint to the browser and
     // is repeated to assistive technology, which is all it is: the server
     // decides what a valid submission is.
+    //
+    // `aria-invalid` is set only when there is an error to point at, so the
+    // attribute means "this control was rejected" rather than being a
+    // permanent fixture the reader learns to ignore.
     $controlAttributes = [
         'id' => $fieldId,
         'name' => $field['name'],
         'required' => 'required',
         'aria-required' => 'true',
         'aria-describedby' => $helpId . ' ' . $errorId,
+        'aria-invalid' => $error === '' ? null : 'true',
     ] + $field['attributes'];
     ?>
     <div>
         <label class="block text-sm font-medium" for="<?= $view->attr($fieldId) ?>"><?= $view->text($field['label']) ?></label>
 
+        <?php
+        /*
+         * The submitted value comes back so a rejected form is corrected
+         * rather than retyped. It is printed through `$view` like everything
+         * else — a value the visitor typed is the least trusted string on the
+         * page, and it reaches an attribute in one branch and element text in
+         * the other, which are different escaping contexts.
+         */
+        ?>
         <?php if ($field['element'] === 'textarea'): ?>
-        <textarea class="mt-1 w-full rounded facet-field border px-3 py-2" <?= $view->attributes($controlAttributes) ?>></textarea>
+        <textarea class="mt-1 w-full rounded facet-field border px-3 py-2" <?= $view->attributes($controlAttributes) ?>><?= $view->text($value) ?></textarea>
         <?php else: ?>
-        <input class="mt-1 w-full rounded facet-field border px-3 py-2" <?= $view->attributes($controlAttributes) ?>>
+        <input class="mt-1 w-full rounded facet-field border px-3 py-2" value="<?= $view->attr($value) ?>" <?= $view->attributes($controlAttributes) ?>>
         <?php endif; ?>
 
         <p class="mt-1 text-sm facet-field-help" id="<?= $view->attr($helpId) ?>"><?= $view->text($field['help']) ?></p>
 
         <?php
         /*
-         * The error slot. It is empty and it stays in the document: an element
-         * that already exists and is already referenced is one the server can
-         * fill without touching anything else. Empty, it collapses and
-         * contributes nothing to the accessible description.
+         * The error slot. It stays in the document whether or not it has
+         * anything to say: an element that already exists and is already
+         * referenced is one the server fills without touching anything else.
+         * Empty, it collapses and contributes nothing to the accessible
+         * description.
          */
         ?>
-        <p class="mt-1 text-sm facet-field-error" id="<?= $view->attr($errorId) ?>" data-facet-field-error></p>
+        <p class="mt-1 text-sm facet-field-error" id="<?= $view->attr($errorId) ?>" data-facet-field-error><?= $view->text($error) ?></p>
     </div>
     <?php endforeach; ?>
+
+    <?php
+    /*
+     * The decoy. A person never sees it — it is moved off-screen by the
+     * stylesheet, hidden from assistive technology and removed from the tab
+     * order — so a value in it did not come from a person filling in this
+     * form. It is a real, labelled input rather than `type="hidden"` because
+     * a hidden input is exactly what an indiscriminate submitter knows to
+     * leave alone.
+     *
+     * Nothing about it can impair the form: no keyboard path reaches it, no
+     * screen reader announces it, and if the stylesheet never arrives it
+     * degrades to a visible field whose own label says to leave it empty.
+     */
+    ?>
+    <div class="facet-nectar" aria-hidden="true">
+        <label for="contact-<?= $view->attr($honeypotField) ?>">Leave this field empty</label>
+        <input
+            id="contact-<?= $view->attr($honeypotField) ?>"
+            type="text"
+            name="<?= $view->attr($honeypotField) ?>"
+            value=""
+            tabindex="-1"
+            autocomplete="off"
+        >
+    </div>
 
     <p>
         <button class="rounded facet-button px-4 py-2" type="submit">Send message</button>

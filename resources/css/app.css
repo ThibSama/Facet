@@ -33,6 +33,7 @@
     --facet-accent: #1b4dd1;
     --facet-accent-ink: #ffffff;
     --facet-focus: #1b4dd1;
+    --facet-danger: #ac1f16;
 
     --facet-shell-max: 48rem;
     --facet-shell-gutter: clamp(1rem, 4vw, 1.5rem);
@@ -53,6 +54,7 @@
       --facet-accent: #93b4ff;
       --facet-accent-ink: #101318;
       --facet-focus: #93b4ff;
+      --facet-danger: #ffa8a0;
     }
   }
 
@@ -69,6 +71,7 @@
     --facet-accent: #93b4ff;
     --facet-accent-ink: #101318;
     --facet-focus: #93b4ff;
+    --facet-danger: #ffa8a0;
   }
 
   :root[data-theme='light'] {
@@ -84,6 +87,7 @@
     --facet-accent: #1b4dd1;
     --facet-accent-ink: #ffffff;
     --facet-focus: #1b4dd1;
+    --facet-danger: #ac1f16;
   }
 
   html {
@@ -213,6 +217,47 @@
    */
   .facet-field-error:empty {
     display: none;
+  }
+
+  .facet-field-error {
+    color: var(--facet-danger);
+  }
+
+  /*
+   * The honeypot's wrapper.
+   *
+   * Taken out of the flow rather than `display: none`, because a bot that
+   * parses CSS treats `display: none` as the obvious tell and a screen reader
+   * would announce nothing either way. The field is additionally
+   * `aria-hidden` and `tabindex="-1"` in the markup, so assistive technology
+   * skips it and the keyboard path never lands on it. If this stylesheet
+   * fails to load the field simply becomes a visible, labelled input that
+   * says to leave it empty — degraded, never broken.
+   */
+  .facet-nectar {
+    position: absolute;
+    left: -10000px;
+    overflow: hidden;
+  }
+
+  /* ---- form notice ---------------------------------------------------- */
+
+  /*
+   * The one place the form speaks about the submission as a whole. Colour is
+   * a reinforcement only: the notice carries its own words and a role, so it
+   * reads identically to someone who cannot see the border.
+   */
+  .facet-notice {
+    border-left: 3px solid var(--facet-border-strong);
+    background-color: var(--facet-surface);
+  }
+
+  .facet-notice--success {
+    border-left-color: var(--facet-accent);
+  }
+
+  .facet-notice--error {
+    border-left-color: var(--facet-danger);
   }
 
   /* ---- skip link ------------------------------------------------------ */

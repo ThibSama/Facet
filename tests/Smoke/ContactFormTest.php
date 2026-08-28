@@ -21,11 +21,18 @@ use PHPUnit\Framework\TestCase;
  * The page is a form before it is anything else, so the assertions are the
  * ones a form has to answer: is every control named to a reader, is every
  * control named to the server, can the server attach a message to a control
- * later without this markup being redesigned, and does the page work with a
- * keyboard and no JavaScript. Two further rules are checked because they are
- * easy to break silently: the page must not promise a delivery the
- * application does not perform, and every alternative way to reach the author
- * must come from the canonical corpus.
+ * without this markup being redesigned, and does the page work with a keyboard
+ * and no JavaScript. Two further rules are checked because they are easy to
+ * break silently: the page must claim only what the application actually does,
+ * and every alternative way to reach the author must come from the canonical
+ * corpus.
+ *
+ * The form now carries two controls a *visitor* never interacts with — the
+ * CSRF token and the honeypot — and the assertions below are careful to
+ * exclude them by role rather than by name, so a visitor-facing claim stays a
+ * claim about what a visitor meets. What those two controls do is asserted in
+ * {@see ContactSubmissionTest} and {@see ContactHttpFlowTest}; what matters
+ * here is that neither of them costs a person anything.
  */
 final class ContactFormTest extends TestCase
 {
@@ -33,6 +40,15 @@ final class ContactFormTest extends TestCase
 
     /** The fields the page owes a visitor, in document order. */
     private const FIELDS = ['name', 'email', 'subject', 'message'];
+
+    /**
+     * Every named control a visitor actually meets — which is to say, all of
+     * them except the hidden CSRF token and the honeypot the stylesheet and
+     * `aria-hidden` between them remove from sight, from speech and from the
+     * keyboard path.
+     */
+    private const VISIBLE_CONTROLS =
+        '//main//form//*[@name][not(@type="hidden")][not(ancestor::*[@aria-hidden="true"])]';
 
     private static function root(): string
     {
@@ -95,8 +111,8 @@ final class ContactFormTest extends TestCase
     {
         $xpath = self::page();
 
-        $names = Dom::attributes($xpath, '//main//form//input[@name] | //main//form//textarea[@name]', 'name');
-        self::assertSame(self::FIELDS, $names, 'The form carries exactly these fields, in this order');
+        $names = Dom::attributes($xpath, self::VISIBLE_CONTROLS, 'name');
+        self::assertSame(self::FIELDS, $names, 'The form asks a visitor for exactly these fields, in this order');
 
         foreach (self::FIELDS as $field) {
             $control = self::control($xpath, $field);
@@ -214,21 +230,29 @@ final class ContactFormTest extends TestCase
         }
 
         // The form is not marked novalidate — the hints are allowed to run —
-        // but the server is where a submission is actually decided, and today
-        // it decides not to accept one.
+        // but the server is where a submission is actually decided. A POST
+        // that skipped the browser entirely reaches the same code, and is
+        // refused by it: nothing in this document is what decided that.
         self::assertFalse(self::form($xpath)->hasAttribute('novalidate'));
 
         $posted = self::application()->handle(Request::create('POST', '/contact'));
 
-        self::assertSame(501, $posted->status(), 'POST is answered by the server, not by the markup');
+        self::assertSame(403, $posted->status(), 'POST is answered by the server, not by the markup');
+        self::assertFalse($posted->isRedirect(), 'An unproven submission must not look accepted');
     }
 
     // ----------------------------------------------------------- honesty
 
     /**
-     * Criterion 11: a real POST action, and no claim that a message arrives.
+     * Criterion 11: a real POST action, and a claim no larger than the truth.
+     *
+     * The form now does something, so the sentence that said it did not has
+     * been replaced rather than merely softened. What replaced it is bounded on
+     * purpose: the application receives and stores a message, and it does not
+     * forward, email or acknowledge one. A page that says "I'll get back to
+     * you" is promising something no code here performs.
      */
-    public function testTheFormPostsToContactAndPromisesNoDelivery(): void
+    public function testTheFormPostsToContactAndClaimsOnlyStorage(): void
     {
         $xpath = self::page();
         $form = self::form($xpath);
@@ -243,20 +267,30 @@ final class ContactFormTest extends TestCase
             'reaches me',
             'i will get back',
             'i will reply',
-            'message sent',
+            'i will respond',
             'thanks for your message',
-            'directly',
             'delivered',
+            'sent to me',
+            'emailed to me',
+            'forwarded to me',
         ] as $claim) {
             self::assertStringNotContainsString($claim, $text, 'The page must not claim delivery: ' . $claim);
         }
+
+        // The superseded sentence must be gone, not merely edited around it.
+        self::assertStringNotContainsString('does not send anything', $text);
 
         // It says what is true instead, and says it before the form: the form
         // is described by that statement.
         self::assertSame('contact-status', $form->getAttribute('aria-describedby'));
 
-        $status = Dom::element($xpath, '//main//*[@id="contact-status"]');
-        self::assertStringContainsString('does not send anything', Dom::textOf($status));
+        $status = Dom::textOf(Dom::element($xpath, '//main//*[@id="contact-status"]'));
+
+        self::assertStringContainsString('stored on this site', $status);
+        self::assertStringContainsString('Nothing is forwarded', $status);
+
+        // On a page nobody has submitted from, there is no outcome to report.
+        self::assertSame(0, Dom::query($xpath, '//main//*[@id="contact-notice"]')->length);
     }
 
     /**

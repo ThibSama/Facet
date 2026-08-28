@@ -33,6 +33,18 @@ final class HttpException extends RuntimeException
         $this->headers = $headers;
     }
 
+    /**
+     * Refused on the merits: the request was understood and is not permitted.
+     *
+     * The distinction from 400 matters for a rejected CSRF token — the body was
+     * perfectly well formed, it simply carried no proof that this session asked
+     * for the action.
+     */
+    public static function forbidden(string $message = 'The request was refused.'): self
+    {
+        return new self(Response::STATUS_FORBIDDEN, $message);
+    }
+
     public static function notFound(string $message = 'No route matched the request.'): self
     {
         return new self(Response::STATUS_NOT_FOUND, $message);

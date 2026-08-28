@@ -11,7 +11,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "design:check": "node tools/check-design-system.mjs",
+    "font:check": "python3 tools/check-font-subset.py",
+    "design:check": "npm run font:check && node tools/check-design-system.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "quality": "npm run lint && npm run design:check && npm run build"

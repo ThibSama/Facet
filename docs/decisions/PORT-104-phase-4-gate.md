@@ -152,39 +152,48 @@ event handler is the second half of that: 0.098 ms per arrival against
 
 ---
 
-## Bundle measurements
+## Bundle measurements and canonical Phase-5 budgets
 
-Production build, `gzip -9`, against the last accepted figures recorded in
-`docs/decisions/PORT-99-signature-hero-renderer.md`.
+The runtime and gzip figures in this decision were measured during the original
+PORT-104 audit. They are retained as **historical evidence**; this corrective
+does not present them as newly measured. The comparison is now against the
+canonical Phase-5 thresholds rather than budgets invented from a repository-only
+search.
 
-| Artefact | PORT-99 | Now | Delta | Provisional budget |
-|---|---|---|---|---|
-| `app` CSS | 4 526 B | 4 888 B | +362 B | 6 000 B |
-| skin CSS | 4 061 B | 4 632 B | +571 B | 6 000 B |
-| `app` JS | 801 B | 801 B | 0 | 1 000 B |
-| skin JS (entry) | 1 213 B | 2 562 B | +1 349 B | 3 000 B |
-| `hero` chunk (deferred, home only) | 2 733 B | 2 731 B | −2 B | 3 000 B |
-| **First load, every route** (CSS + JS, no fonts) | 10 601 B | 12 883 B | +2 282 B | 15 000 B |
-| **Home, once idle** (first load + hero chunk) | 13 334 B | 15 614 B | +2 280 B | 18 000 B |
+Historical production build, `gzip -9`, against the last accepted figures in
+`docs/decisions/PORT-99-signature-hero-renderer.md`:
 
-**The budgets in the right-hand column are stated by this checkpoint, not
-inherited.** No Phase-5 target exists anywhere in the repository — it was
-searched for. They are set at roughly 1.2× the measured figure so that a
-material regression fails and ordinary work does not, and they are provisional
-in the plainest sense: whoever owns Phase 5 should replace them with real ones.
-Nothing here is a claim that these are the project's targets.
+| Artefact | PORT-99 | PORT-104 historical | Delta |
+|---|---:|---:|---:|
+| `app` CSS | 4 526 B | 4 888 B | +362 B |
+| skin CSS | 4 061 B | 4 632 B | +571 B |
+| `app` JS | 801 B | 801 B | 0 |
+| skin JS (critical entry) | 1 213 B | 2 562 B | +1 349 B |
+| `hero` chunk (deferred, home only) | 2 733 B | 2 731 B | −2 B |
+| **First load, every route** (CSS + JS, no fonts) | 10 601 B | 12 883 B | +2 282 B |
+| **Home, once idle** (first load + hero chunk) | 13 334 B | 15 614 B | +2 280 B |
 
-Against them, nothing overruns. The +2 282 B every route now carries buys the
-whole interactive layer: the card light and its tracker, five continuous
-ribbons, and section entry. It is charged to every route rather than to the
-home page alone because section entry applies everywhere and the card grid
-appears on two routes — a deferred chunk would have traded those bytes for an
-extra request on nearly every page. The shader stays deferred because it is the
-one piece that only the home page can use.
+Canonical comparison for the corrected candidate:
+
+| Phase-5 contract | Candidate evidence | Result |
+|---|---:|---|
+| Critical JS gzip ≤ 50 KiB, excluding deferred visual chunk | 3 363 B / 3.28 KiB historical (`app` + skin entry) | within |
+| Deferred visual chunk gzip ≤ 250 KiB | 2 731 B / 2.67 KiB historical hero chunk | within |
+| Total WOFF2 ≤ 120 KiB / 122 880 B | 117 904 B / 115.14 KiB deterministic asset gate | within by 4 976 B |
+| No major unused client dependency | no runtime client dependency; build-only packages remain dev dependencies | within |
+| Non-LCP images dimensioned and lazy | no `<img>` is currently rendered; media placeholders reserve aspect ratio, and `ResponsiveImage` requires intrinsic dimensions for future assets | within (no candidate images) |
+
+The +2 282 B historical first-load delta buys the interactive layer: the card
+light and its tracker, five continuous ribbons, and section entry. It is
+charged to every route because section entry applies everywhere and the card
+grid appears on two routes. The shader remains deferred because it is the one
+piece that only the home page can use.
 
 The hero chunk is still fetched only where it is used, and the skin entry still
-reaches it only through a dynamic import — both re-asserted by
-`tests/Smoke/SignatureHeroTest.php` against the real manifest.
+reaches it only through a dynamic import — re-asserted by
+`tests/Smoke/SignatureHeroTest.php` against the current manifest. Font sizing,
+cmap coverage, names, weights, metrics, OpenType layout features and checksums
+are fail-closed in `tools/check-font-subset.py`.
 
 ---
 

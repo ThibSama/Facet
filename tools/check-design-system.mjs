@@ -70,8 +70,8 @@ for (const theme of ['light', 'dark']) {
 }
 
 const fontFiles = [
-  ['facet-lato-regular.woff2', '2e1eff147a26eaba324a5991dea698fc3cc935157bb097961550b4481dcf114a'],
-  ['facet-lato-bold.woff2', '3824666ebd10503bb52fa19a8fd7079d71c5c09d4acaaa1bcfa2fc57cbcf3f61'],
+  ['facet-lato-regular.woff2', 'dfc98c03e2c875bc97861dbad715340a50a1641e6d8cc1218d343286a69725c1'],
+  ['facet-lato-bold.woff2', 'a9a28fb4e84157480a5bdb19c6634b5b124dd5ae9a3f9b12d211d6f4f4e68884'],
 ];
 
 for (const [name, expected] of fontFiles) {

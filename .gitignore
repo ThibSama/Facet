@@ -24,3 +24,7 @@
 Thumbs.db
 .idea/
 .vscode/
+
+# Playwright end-to-end run artefacts
+/tests/E2E/.results/
+/playwright-report/

@@ -64,15 +64,36 @@ foreach ($skills as $skill) {
 ob_start();
 
 ?>
-<section class="facet-hero" aria-labelledby="hero-title">
+<?php
+/*
+ * Hero layout, spacing, typography and responsive behaviour are Tailwind
+ * utilities: this is where they belong, and reading the template tells you
+ * what the hero does without opening a stylesheet. The `facet-hero` class is
+ * kept as a marker only — the skin uses it to exempt the hero from the
+ * section rhythm applied to every other section, and to hang the signature
+ * visual's material off it. It carries no layout of its own.
+ *
+ * The two-column arrangement starts at 56rem, which is a hero measurement
+ * rather than a shell breakpoint, so it is written as an arbitrary variant
+ * instead of being promoted to a global screen.
+ */
+?>
+<section
+    class="facet-hero grid grid-cols-1 gap-[clamp(var(--facet-space-7),7vw,var(--facet-space-9))] min-[56rem]:grid-cols-[minmax(0,1.3fr)_minmax(17rem,0.7fr)] min-[56rem]:items-center min-[56rem]:min-h-[min(38rem,calc(100vh-10rem))]"
+    aria-labelledby="hero-title"
+>
     <div class="facet-hero__body max-w-prose">
         <p class="text-sm font-medium uppercase tracking-wide facet-ink-subtle"><?= $view->text($profile->location()) ?></p>
 
-        <h1 id="hero-title" class="mt-2 text-4xl font-semibold tracking-tight"><?= $view->text($profile->name()) ?></h1>
+        <h1
+            id="hero-title"
+            data-facet-hero-title
+            class="mt-2 max-w-[18ch] text-display leading-display tracking-display font-bold text-ink"
+        ><?= $view->text($profile->name()) ?></h1>
 
-        <p class="mt-3 text-lg facet-ink-muted"><?= $view->text($profile->headline()) ?></p>
+        <p class="mt-3 max-w-[38rem] text-lead leading-heading text-ink-muted"><?= $view->text($profile->headline()) ?></p>
 
-        <p class="mt-6 facet-ink-muted"><?= $view->text($profile->summary()) ?></p>
+        <p class="mt-6 text-ink-muted"><?= $view->text($profile->summary()) ?></p>
 
         <?php if ($focusAreas !== []): ?>
         <ul class="mt-6 flex flex-wrap gap-2 text-sm facet-chip-list" aria-label="Focus areas">
@@ -90,13 +111,25 @@ ob_start();
 
     <?php
     /*
-     * The anchor point for the signature visual this skin gets in Phase 4.
-     * It is empty and decorative on purpose: the hero must read completely
-     * without it, so the slot carries no information and its absence — today,
-     * and whenever the portrait has no source — hides nothing.
+     * The signature visual.
+     *
+     * It is empty, decorative and hidden from assistive technology on purpose:
+     * the hero must read completely without it, so the slot carries no
+     * information and its absence hides nothing. Below 40rem it is not
+     * rendered at all — a narrow viewport spends its height on the words.
+     *
+     * What the slot *looks* like is the skin's material (layered gradients and
+     * two shard pseudo-elements) and stays in CSS. What it *occupies* is
+     * layout, and is stated here. Because the slot is fully sized by these
+     * utilities before any script runs, the enhancement layer PORT-100 mounts
+     * inside it is absolutely positioned and cannot move anything.
      */
     ?>
-    <div class="facet-hero__visual" aria-hidden="true" data-facet-hero-visual></div>
+    <div
+        class="facet-hero__visual hidden min-[40rem]:block aspect-[16/7] w-full max-w-[42rem] justify-self-start min-[56rem]:aspect-[4/5] min-[56rem]:w-[min(100%,22rem)] min-[56rem]:max-w-none min-[56rem]:justify-self-end"
+        aria-hidden="true"
+        data-facet-hero-visual
+    ></div>
 </section>
 
 <?php if ($projects !== []): ?>

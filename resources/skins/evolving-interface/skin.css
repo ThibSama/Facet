@@ -174,7 +174,12 @@ html[data-skin='evolving-interface'] :where(h1, h2, h3) {
   text-wrap: balance;
 }
 
-html[data-skin='evolving-interface'] .facet-main h1 {
+/*
+ * Every heading outside the hero. The hero's own H1 states its size in
+ * Tailwind utilities, and this rule would out-specify them, so it excludes
+ * itself rather than forcing the template to fight it with `!important`.
+ */
+html[data-skin='evolving-interface'] .facet-main h1:not([data-facet-hero-title]) {
   max-width: 18ch;
   font-size: var(--facet-text-3xl);
   font-weight: 700;
@@ -409,29 +414,8 @@ html[data-skin='evolving-interface'] .facet-main .uppercase {
   letter-spacing: var(--facet-tracking-caps);
 }
 
-html[data-skin='evolving-interface'] .facet-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(17rem, 0.7fr);
-  align-items: center;
-  gap: clamp(var(--facet-space-7), 7vw, var(--facet-space-9));
-  min-height: min(38rem, calc(100vh - 10rem));
-}
-
-html[data-skin='evolving-interface'] .facet-hero h1 {
-  font-size: var(--facet-text-display);
-  line-height: var(--facet-leading-tight);
-}
-
-html[data-skin='evolving-interface'] .facet-hero__body > .text-lg {
-  max-width: 38rem;
-  font-size: var(--facet-text-xl);
-}
-
 html[data-skin='evolving-interface'] .facet-hero__visual {
   position: relative;
-  aspect-ratio: 4 / 5;
-  width: min(100%, 22rem);
-  justify-self: end;
   overflow: hidden;
   border: var(--facet-border-width) solid var(--facet-border);
   border-radius: min(4vw, 2.5rem);
@@ -461,6 +445,41 @@ html[data-skin='evolving-interface'] .facet-hero__visual::after {
   inset: 48% 28% 10% 9%;
   border-radius: 1.5rem 50% 1.5rem 50%;
   transform: rotate(12deg);
+}
+
+/*
+ * The signature enhancement layer.
+ *
+ * The canvas is created by the hero module and never by the server, so the
+ * home page keeps its "no scripted control" contract. It is absolutely
+ * positioned inside a slot the fallback has already sized, which is what makes
+ * the absent case free: no JavaScript, reduced motion, a low-tier device, a
+ * refused WebGL2 context or a thrown error all leave the geometry untouched
+ * and shift nothing.
+ *
+ * It is painted *under* the two shard pseudo-elements on purpose. The accepted
+ * static visual stays the thing you read; the facets are what moves behind it.
+ * Opacity is the only thing that changes when it arrives, so the upgrade
+ * reads as the material catching the light rather than as a swap.
+ */
+html[data-skin='evolving-interface'] .facet-hero__visual::before,
+html[data-skin='evolving-interface'] .facet-hero__visual::after {
+  z-index: 1;
+}
+
+html[data-skin='evolving-interface'] .facet-hero__visual > canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity var(--facet-duration-slow) var(--facet-ease-standard);
+}
+
+html[data-skin='evolving-interface'] .facet-hero__visual[data-facet-hero='live'] > canvas {
+  opacity: 1;
 }
 
 html[data-skin='evolving-interface'] .facet-card-grid {
@@ -630,27 +649,12 @@ html[data-skin='evolving-interface'] .facet-message .whitespace-pre-wrap {
 
 html[data-skin='evolving-interface'] .facet-inline-form { flex-wrap: wrap; }
 
-@media (max-width: 56rem) {
-  html[data-skin='evolving-interface'] .facet-hero {
-    grid-template-columns: minmax(0, 1fr);
-    min-height: 0;
-  }
-
-  html[data-skin='evolving-interface'] .facet-hero__visual {
-    aspect-ratio: 16 / 7;
-    width: 100%;
-    max-width: 42rem;
-    justify-self: start;
-  }
-}
-
 @media (max-width: 40rem) {
   html[data-skin='evolving-interface'] .facet-main > section:not(.facet-hero) {
     margin-top: var(--facet-space-7);
     padding-top: var(--facet-space-6);
   }
 
-  html[data-skin='evolving-interface'] .facet-hero__visual { display: none; }
   html[data-skin='evolving-interface'] .facet-card-grid { grid-template-columns: minmax(0, 1fr); }
   html[data-skin='evolving-interface'] .facet-form-panel { padding: var(--facet-space-4); }
 

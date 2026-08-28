@@ -48,6 +48,36 @@ final class ThemeShellTest extends TestCase
         return $css;
     }
 
+    /**
+     * The body of the `@theme` at-rule, brace-matched rather than pattern-
+     * matched so a nested block could never truncate it.
+     */
+    private static function tailwindThemeBlock(string $css): string
+    {
+        $start = strpos($css, '@theme');
+        self::assertIsInt($start, 'app.css must declare a Tailwind @theme block');
+
+        $open = strpos($css, '{', $start);
+        self::assertIsInt($open);
+
+        $depth = 0;
+        $length = strlen($css);
+
+        for ($index = $open; $index < $length; $index++) {
+            if ($css[$index] === '{') {
+                $depth++;
+            } elseif ($css[$index] === '}') {
+                $depth--;
+
+                if ($depth === 0) {
+                    return substr($css, $start, $index - $start + 1);
+                }
+            }
+        }
+
+        self::fail('The @theme block is not closed');
+    }
+
     private static function bootstrapPartial(): string
     {
         $raw = file_get_contents(
@@ -349,12 +379,44 @@ final class ThemeShellTest extends TestCase
     /** Criterion 11: shared structure stays neutral; the selected skin owns identity. */
     public function testVisualTokensAreNamespacedAndOwnedByTheSkin(): void
     {
-        preg_match_all('/(--[a-z0-9-]+)\s*:/i', self::css(), $matches);
+        $css = self::css();
+
+        /*
+         * The shell's own declarations stay namespaced. The Tailwind `@theme`
+         * block is excluded from that rule and held to a stricter one below:
+         * its key names are Tailwind's vocabulary — `--text-display` is what
+         * makes a `text-display` utility exist, and prefixing it would simply
+         * produce a differently-named utility — so the neutrality it has to
+         * prove is about *values*, not names.
+         */
+        $themeBlock = self::tailwindThemeBlock($css);
+        $shellCss = str_replace($themeBlock, '', $css);
+
+        preg_match_all('/(--[a-z0-9-]+)\s*:/i', $shellCss, $matches);
 
         self::assertNotEmpty($matches[1]);
 
         foreach (array_unique($matches[1]) as $token) {
             self::assertStringStartsWith('--facet-', $token, 'Shell tokens must be namespaced');
+        }
+
+        /*
+         * Criterion 11 restated for the theme block: naming the design system
+         * to Tailwind must not copy any of it into the shared layer. Every
+         * value is a reference to a `--facet-` variable, so the skin remains
+         * the only place a visual decision is written down — and a literal
+         * here would be exactly the identity leak this test exists to catch.
+         */
+        preg_match_all('/(--[a-z0-9-]+)\s*:\s*([^;]+);/i', $themeBlock, $themeMatches, PREG_SET_ORDER);
+
+        self::assertNotEmpty($themeMatches, 'The Tailwind theme block must declare tokens');
+
+        foreach ($themeMatches as [, $token, $value]) {
+            self::assertMatchesRegularExpression(
+                '/^var\(\s*--facet-[a-z0-9-]+/i',
+                trim($value),
+                sprintf('%s must resolve through a --facet- variable, not a literal', $token)
+            );
         }
 
         // Colours belong to tokens, not to components: no component rule may

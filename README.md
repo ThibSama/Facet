@@ -113,6 +113,7 @@ fails the request explicitly instead of rendering an assetless page.
 config/           Resolved application settings
 content/          Canonical content (versioned JSON, no database)
 database/         Ordered SQL migrations (plain .sql, no framework)
+docs/             Durable decision records (why, with the measurements)
 public/           Document root — index.php and built assets (public/build/)
 resources/css/    Shared Tailwind entry stylesheet
 resources/fonts/  Licensed local WOFF2 pipeline (no font selected yet)

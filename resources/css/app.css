@@ -1,5 +1,51 @@
-@import 'tailwindcss';
+/*
+ * Tailwind scans for class names, and it is told exactly where to look.
+ *
+ * Automatic detection walks the repository, which means a utility-shaped
+ * string anywhere — a PHPUnit assertion naming a class it expects, a snippet
+ * in a decision document — silently adds rules to the stylesheet every visitor
+ * downloads. Templates live in resources/, so that is the whole template
+ * surface, and nothing outside it can grow the production CSS.
+ */
+@import 'tailwindcss' source(none);
+@source '../';
 @import '../fonts/fonts.css';
+
+/*
+ * Tailwind v4 CSS-first theme.
+ *
+ * Facet is Tailwind-first: ordinary layout, spacing, typography and states
+ * belong in utilities in the templates, not in a parallel CSS component
+ * framework. This block is what makes that possible — it names the design
+ * system to Tailwind so the utilities exist.
+ *
+ * `inline` is load-bearing. The generated utilities reference the
+ * `--facet-*` variables rather than copying their values, so a skin stays the
+ * single source of truth and the runtime light/dark swap keeps working: a
+ * `text-ink-muted` utility resolves through `var(--facet-ink-muted)` and
+ * therefore changes with the theme, exactly as the semantic variables do.
+ *
+ * Colours are declared below in this file, so every skin has them. The type
+ * scale is a skin's own vocabulary and is only defined by skins, so each key
+ * carries the shell's neutral value as a fallback — a skin that ships no
+ * scale gets a sane utility rather than an invalid declaration.
+ */
+@theme inline {
+  --text-display: var(--facet-text-display, 3rem);
+  --text-lead: var(--facet-text-xl, 1.25rem);
+
+  --leading-display: var(--facet-leading-tight, 1.1);
+  --leading-heading: var(--facet-leading-heading, 1.2);
+
+  --tracking-display: var(--facet-tracking-tight, -0.03em);
+
+  --color-ink: var(--facet-ink);
+  --color-ink-muted: var(--facet-ink-muted);
+  --color-ink-subtle: var(--facet-ink-subtle);
+  --color-accent: var(--facet-accent);
+  --color-accent-ink: var(--facet-accent-ink);
+  --color-hairline: var(--facet-border);
+}
 
 /*
  * Facet base stylesheet.

@@ -1191,6 +1191,140 @@ def transitions(
     return report, failures
 
 
+HERO_OFFSCREEN = """
+/*
+ * The claim in hero.ts is that a slot nobody can see stops asking for frames.
+ * It is a claim about work that leaves no trace in the DOM, so the only way to
+ * hold it to account is to count the frames themselves.
+ *
+ * The document is re-parsed in a same-origin iframe whose `requestAnimationFrame`
+ * is wrapped while the frame is still `about:blank` — before any module exists
+ * to call it. Nothing else in the skin runs a continuous loop: the ribbons are
+ * a CSS animation on a promoted layer and the reveal is an IntersectionObserver,
+ * so in a still frame with no pointer, essentially every counted frame is the
+ * hero's.
+ *
+ * Then the frame is scrolled until the slot is well clear of the viewport, and
+ * the same window is counted again. A hero that kept drawing would report two
+ * comparable numbers; a hero that stood down reports a second one at rest.
+ */
+const html = arguments[0];
+
+return (async () => {
+
+const frame = document.createElement('iframe');
+frame.style.cssText = 'display:block;border:0;width:1200px;height:900px';
+document.body.replaceChildren(frame);
+
+const view = frame.contentWindow;
+const doc = frame.contentDocument;
+
+let frames = 0;
+const raf = view.requestAnimationFrame.bind(view);
+view.requestAnimationFrame = (callback) => raf((time) => { frames += 1; return callback(time); });
+
+doc.open();
+doc.write(html);
+doc.close();
+
+/* Long enough for the idle-scheduled hero and its dynamic import. */
+await new Promise((resolve) => view.setTimeout(resolve, 4000));
+
+const slot = doc.querySelector('[data-facet-hero-visual]');
+const sample = async (ms) => {
+    const start = frames;
+    await new Promise((resolve) => view.setTimeout(resolve, ms));
+    return frames - start;
+};
+
+const onscreen = await sample(1000);
+
+/* Far enough that no part of the slot, nor its observer margin, remains. */
+view.scrollTo(0, doc.documentElement.scrollHeight);
+await new Promise((resolve) => view.setTimeout(resolve, 600));
+
+const offscreen = await sample(1000);
+const box = slot === null ? null : slot.getBoundingClientRect();
+
+/* Back on screen: standing down must be a pause, never a one-way exit. */
+view.scrollTo(0, 0);
+await new Promise((resolve) => view.setTimeout(resolve, 600));
+
+const resumed = await sample(1000);
+
+const result = {
+    hero: slot === null ? null : slot.dataset.facetHero || null,
+    canvases: doc.querySelectorAll('[data-facet-hero-visual] canvas').length,
+    onscreen,
+    offscreen,
+    resumed,
+    slotBottomWhileScrolled: box === null ? null : Math.round(box.bottom),
+};
+
+frame.remove();
+
+return result;
+})();
+"""
+
+
+def hero_offscreen(session: str, base_url: str) -> tuple[dict[str, object], list[str]]:
+    """Prices the hero's animation loop on screen, off screen and back again."""
+    failures: list[str] = []
+
+    webdriver("POST", f"/session/{session}/window/rect", {"width": 1440, "height": 1000})
+    webdriver("POST", f"/session/{session}/url", {"url": base_url + "/"})
+    html = execute(
+        session,
+        "return fetch(arguments[0]).then((response) => response.text());",
+        [base_url + "/"],
+    )
+    result = execute(session, HERO_OFFSCREEN, [html])
+
+    where = "hero offscreen"
+
+    if result["hero"] != "live" or result["canvases"] != 1:
+        # Not a failure of the pause — a failure to have anything to pause.
+        # Said plainly, because a silent skip here would read as a pass.
+        failures.append(
+            f"{where}: the hero never mounted (state '{result['hero']}', "
+            f"{result['canvases']} canvases); the trace proves nothing"
+        )
+
+        return result, failures
+
+    # A floor, not a frame-rate budget. Headless Firefox drives a nested iframe
+    # at roughly half the rate a real window gets, and this gate is not the
+    # place to judge that: 15 frames is simply enough of a loop that "0 while
+    # off screen" is a decision and not an idle second.
+    if result["onscreen"] < 15:
+        failures.append(f"{where}: only {result['onscreen']} frames while visible; the trace proves nothing")
+    elif result["slotBottomWhileScrolled"] is not None and result["slotBottomWhileScrolled"] > 0:
+        failures.append(
+            f"{where}: the slot was still on screen after scrolling "
+            f"(bottom {result['slotBottomWhileScrolled']}px)"
+        )
+    else:
+        # A tenth of the visible rate. Not zero: one trailing frame may already
+        # be queued when the observer fires, and failing that would be failing
+        # a correct implementation for the timing of a single callback.
+        ceiling = max(2, result["onscreen"] // 10)
+
+        if result["offscreen"] > ceiling:
+            failures.append(
+                f"{where}: {result['offscreen']} frames drawn off screen against "
+                f"{result['onscreen']} on screen (ceiling {ceiling})"
+            )
+
+        if result["resumed"] < result["onscreen"] // 2:
+            failures.append(
+                f"{where}: only {result['resumed']} frames after scrolling back, "
+                f"against {result['onscreen']} before; the pause did not lift"
+            )
+
+    return result, failures
+
+
 CONSOLE_PROBE = """
 /*
  * A clean console, proved the only way it can be: by owning the console
@@ -1247,6 +1381,36 @@ const result = {
     ribbons: doc.querySelectorAll('[data-facet-ribbon]').length,
     staged: doc.querySelectorAll('[data-facet-reveal-section]').length,
     cards: doc.querySelectorAll('.facet-card').length,
+    /*
+     * Whether the card's light actually follows a pointer under this profile.
+     *
+     * The skin leaves no mark until something moves, so the only honest way to
+     * ask is to move something: one synthetic `pointermove` at the centre of
+     * the first card, delivered to the real listener the grid registered, and
+     * then two frames — the handler asks for a frame and `paint` writes on it.
+     * `tracked` is the attribute that write sets, so an empty string here is
+     * the grid declining rather than the probe arriving too early.
+     */
+    tracked: await (async () => {
+        const card = doc.querySelector('[data-facet-card-grid] .facet-card');
+
+        if (card === null) {
+            return null;
+        }
+
+        const rect = card.getBoundingClientRect();
+
+        card.dispatchEvent(new view.PointerEvent('pointermove', {
+            bubbles: true,
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2,
+            pointerType: 'mouse',
+        }));
+
+        await new Promise((resolve) => view.requestAnimationFrame(() => view.requestAnimationFrame(resolve)));
+
+        return card.dataset.facetCard || '';
+    })(),
     text: doc.body.innerText.replace(/\\s+/g, ' ').trim().length,
 };
 
@@ -1266,9 +1430,19 @@ def console_and_fallback(
     """Runs every route with the console owned, and prices the chosen profile.
 
     `profile` names what the browser was configured to be for this run:
-    `normal`, `no-webgl`, `low-tier` or `reduced-motion`. The hero's expected
-    resting state follows from it, and so does whether any enhancement is
-    allowed to have mounted at all.
+    `normal`, `no-webgl`, `low-tier`, `reduced-motion`, `pointer-fine` or
+    `pointer-coarse`. The hero's expected resting state follows from it, and so
+    does whether any enhancement is allowed to have mounted at all.
+
+    The two families are not the same kind of thing, which is why they are
+    named apart rather than lumped under "degraded". `no-webgl`, `low-tier` and
+    `reduced-motion` are reasons to decline the signature visual, so the hero
+    must come to rest on the accepted static fallback. A pointer is not: a
+    coarse pointer says nothing about what the device can draw, only that there
+    is no path to track, so the hero still runs and it is the *card light* that
+    stands down. Asserting one rule for both would have let a real regression —
+    a shader skipped on every tablet, or a light left tracking a finger — pass
+    as the expected degradation.
     """
     failures: list[str] = []
     report: list[dict[str, object]] = []
@@ -1298,19 +1472,20 @@ def console_and_fallback(
         if result["text"] < 100:
             failures.append(f"{where}: the page rendered {result['text']} characters of text")
 
+        # The profiles that are a reason to decline the signature visual. A
+        # pointer profile is deliberately not one of them.
+        declines_hero = profile in {"no-webgl", "low-tier", "reduced-motion"}
+
         if route == "/":
             if result["hero"] is None:
                 failures.append(f"{where}: the home page lost its hero slot")
-            elif profile == "normal":
-                if result["hero"] != "live":
-                    failures.append(f"{where}: the hero settled on '{result['hero']}' on a capable browser")
-            else:
-                # Every degraded profile resolves the same way: the accepted
-                # static visual, untouched, and no canvas at all.
+            elif declines_hero:
                 if result["hero"] != "static":
                     failures.append(f"{where}: the hero settled on '{result['hero']}', not the static fallback")
                 if result["canvases"] != 0:
                     failures.append(f"{where}: {result['canvases']} canvases survived the fallback")
+            elif result["hero"] != "live":
+                failures.append(f"{where}: the hero settled on '{result['hero']}' on a capable browser")
 
             if profile == "reduced-motion":
                 if result["ribbonsLive"]:
@@ -1319,6 +1494,20 @@ def console_and_fallback(
                     failures.append(f"{where}: {result['staged']} sections were staged under reduced motion")
             elif result["ribbons"] and not result["ribbonsLive"]:
                 failures.append(f"{where}: the skill ribbons never started")
+
+        # The card light, where the profile actually says what to expect. The
+        # default profile is silent on purpose: headless Firefox reports no
+        # pointer capabilities at all, so `(hover: hover) and (pointer: fine)`
+        # is false for reasons that describe the harness, not a reader.
+        tracked = result["tracked"]
+
+        if tracked is not None:
+            if profile == "pointer-fine":
+                if tracked != "tracked":
+                    failures.append(f"{where}: the card light never followed a fine pointer")
+            elif profile in {"pointer-coarse", "reduced-motion"}:
+                if tracked:
+                    failures.append(f"{where}: the card light tracked under '{profile}'")
 
     return report, failures
 
@@ -1335,6 +1524,7 @@ def main() -> int:
     parser.add_argument("--login-password")
     parser.add_argument("--contact-states", action="store_true")
     parser.add_argument("--hero-lifecycle", action="store_true")
+    parser.add_argument("--hero-offscreen", action="store_true")
     parser.add_argument("--card-interaction", action="store_true")
     parser.add_argument("--reduced-motion", action="store_true")
     parser.add_argument("--pointer", choices=["fine", "coarse", "default"], default="default")
@@ -1467,6 +1657,7 @@ def main() -> int:
                 "no-webgl" if options.no_webgl
                 else "low-tier" if options.low_tier
                 else "reduced-motion" if options.reduced_motion
+                else f"pointer-{options.pointer}" if options.pointer != "default"
                 else "normal"
             )
             logged, console_failures = console_and_fallback(
@@ -1474,6 +1665,11 @@ def main() -> int:
             )
             (output / f"console-{profile}.json").write_text(json.dumps(logged, indent=2) + "\n")
             failures.extend(console_failures)
+
+        if options.hero_offscreen:
+            offscreen, offscreen_failures = hero_offscreen(session, options.base_url)
+            (output / "hero-offscreen.json").write_text(json.dumps(offscreen, indent=2) + "\n")
+            failures.extend(offscreen_failures)
 
         if options.hero_lifecycle:
             lifecycle, lifecycle_failures = hero_lifecycle(session, options.base_url)

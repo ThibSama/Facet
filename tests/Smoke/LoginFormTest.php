@@ -272,6 +272,46 @@ final class LoginFormTest extends TestCase
     }
 
     /**
+     * The refusal is carried by the form's description, not by a live region.
+     *
+     * This page arrives as a whole new document, so the notice is already in
+     * the markup before any assistive technology begins watching it: there is
+     * no later change for `aria-live` to announce, and a region that never
+     * fires is a promise the page does not keep. Naming the notice in the
+     * form's `aria-describedby` is what actually reaches someone who moves
+     * straight to a control, which is exactly what a refused sign-in invites.
+     */
+    public function testTheRefusalIsDescribedByTheFormRatherThanAnnouncedByALiveRegion(): void
+    {
+        $this->accounts->add(self::EMAIL, self::PASSWORD, Role::Admin);
+
+        $rejected = $this->submit(['_token' => $this->token(), 'email' => self::EMAIL, 'password' => 'wrong']);
+
+        $xpath = Dom::of(Dom::withoutScripts($rejected->body()));
+
+        $notice = Dom::element($xpath, '//main//*[@id="login-notice"]');
+
+        self::assertFalse($notice->hasAttribute('role'), 'A notice present at load is not a live region');
+        self::assertFalse($notice->hasAttribute('aria-live'), 'A notice present at load is not a live region');
+
+        // The form points at the refusal first, then at the standing statement.
+        $described = Dom::element($xpath, '//main//form')->getAttribute('aria-describedby');
+
+        self::assertSame('login-notice login-status', $described);
+
+        // Every id it names is really there.
+        foreach (preg_split('/\s+/', trim($described)) ?: [] as $target) {
+            Dom::element($xpath, sprintf('//*[@id="%s"]', $target), 'Dangling reference: ' . $target);
+        }
+
+        // With nothing refused there is no notice, and nothing to point at.
+        $fresh = Dom::of(Dom::withoutScripts($this->page()));
+
+        self::assertSame(0, Dom::query($fresh, '//main//*[@id="login-notice"]')->length);
+        self::assertSame('login-status', Dom::element($fresh, '//main//form')->getAttribute('aria-describedby'));
+    }
+
+    /**
      * A rejected form is still submittable with the token it carries.
      */
     public function testTheRejectedFormIsStillSubmittable(): void

@@ -95,6 +95,15 @@ $fields = [
 
 $noticeClass = ($notice['kind'] ?? '') === 'success' ? 'facet-notice--success' : 'facet-notice--error';
 
+$hasNotice = is_array($notice) && isset($notice['text']) && $notice['text'] !== '';
+
+/*
+ * The form is described by the standing explanation, and — when a submission
+ * has just been answered — by that outcome as well, so the outcome reaches
+ * someone who moves straight to a field without reading down to it.
+ */
+$formDescribedBy = $hasNotice ? 'contact-notice contact-status' : 'contact-status';
+
 ob_start();
 
 ?>
@@ -113,14 +122,20 @@ ob_start();
     so for anything urgent the links below are quicker.
 </p>
 
-<?php if (is_array($notice) && isset($notice['text']) && $notice['text'] !== ''): ?>
+<?php if ($hasNotice): ?>
 <?php
 /*
  * The form-level statement: the outcome of a submission, as opposed to the
- * standing description above. `role="status"` and `aria-live="polite"` mean a
- * screen reader announces it on the redirected page without the visitor
- * having to go looking for it, and the element is placed before the form so
- * the reading order matches the announcement.
+ * standing description above. It sits before the form so the reading order
+ * matches the order the page is understood in, and it is named first in the
+ * form's `aria-describedby` so the outcome reaches someone who moves straight
+ * to a field without reading down to it.
+ *
+ * The live region stays. Unlike the login refusal — which a visitor answers by
+ * going back into the form, where the description reaches them — a
+ * confirmation is the end of the errand: there is nothing left to fill in and
+ * no reason to return to the form at all. Announcing it is the only channel
+ * left that does not need JavaScript.
  */
 ?>
 <p
@@ -135,7 +150,7 @@ ob_start();
     class="mt-8 max-w-md space-y-6 facet-form-panel"
     method="post"
     action="<?= $view->url('/contact') ?>"
-    aria-describedby="contact-status"
+    aria-describedby="<?= $view->attr($formDescribedBy) ?>"
 >
     <?php
     /*

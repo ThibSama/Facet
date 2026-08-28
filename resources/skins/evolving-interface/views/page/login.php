@@ -47,6 +47,18 @@ $email = isset($values[$emailField]) && is_string($values[$emailField]) ? $value
 
 $noticeClass = ($notice['kind'] ?? '') === 'success' ? 'facet-notice--success' : 'facet-notice--error';
 
+$hasNotice = is_array($notice) && isset($notice['text']) && $notice['text'] !== '';
+
+/*
+ * The form is described by the standing explanation, and — when a submission
+ * has just been refused — by that refusal as well. The outcome is therefore
+ * carried by the form's own description rather than by a live region: this
+ * page arrives as a fresh document, so the notice is in the DOM before any
+ * assistive technology starts watching it, and there is no later change for a
+ * live region to announce.
+ */
+$formDescribedBy = $hasNotice ? 'login-notice login-status' : 'login-status';
+
 ob_start();
 
 ?>
@@ -57,20 +69,18 @@ ob_start();
     There is nothing to sign up for, and nothing here that a visitor needs.
 </p>
 
-<?php if (is_array($notice) && isset($notice['text']) && $notice['text'] !== ''): ?>
+<?php if ($hasNotice): ?>
 <?php
 /*
- * The form-level statement. `role="status"` with `aria-live="polite"` means a
- * screen reader announces the refusal without the visitor having to go looking
- * for it, and the element is placed before the form so the reading order
- * matches the announcement.
+ * The form-level statement, placed before the form so the reading order
+ * matches the order the page is understood in. It is named first in the
+ * form's `aria-describedby`, so the refusal reaches someone who moves
+ * straight to a field without reading down to it.
  */
 ?>
 <p
     class="mt-6 max-w-md rounded facet-notice <?= $view->attr($noticeClass) ?> px-4 py-3"
     id="login-notice"
-    role="status"
-    aria-live="polite"
 ><?= $view->text($notice['text']) ?></p>
 <?php endif; ?>
 
@@ -78,7 +88,7 @@ ob_start();
     class="mt-8 max-w-md space-y-6 facet-form-panel"
     method="post"
     action="<?= $view->url('/login') ?>"
-    aria-describedby="login-status"
+    aria-describedby="<?= $view->attr($formDescribedBy) ?>"
 >
     <?php
     /*

@@ -99,7 +99,9 @@ final class ErrorPresenter
         $status = isset(self::PUBLIC_TEXT[$status]) ? $status : Response::STATUS_INTERNAL_SERVER_ERROR;
         $text = self::PUBLIC_TEXT[$status];
 
-        $headers = $error instanceof HttpException ? $error->headers() : [];
+        $headers = ($error instanceof HttpException ? $error->headers() : []) + [
+            'X-Robots-Tag' => 'noindex, nofollow',
+        ];
 
         $data = $shared + [
             'status' => $status,
@@ -202,6 +204,7 @@ final class ErrorPresenter
         return '<!doctype html>' . "\n"
             . '<html lang="en"><head><meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            . '<meta name="robots" content="noindex, nofollow">'
             . '<title>' . $escape($text['title']) . '</title></head>'
             . '<body><main><h1>' . $escape($text['title']) . '</h1>'
             . '<p>' . $escape($text['message']) . '</p>'

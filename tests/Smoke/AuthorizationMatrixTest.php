@@ -271,6 +271,7 @@ final class AuthorizationMatrixTest extends TestCase
 
         self::assertSame(303, $response->status());
         self::assertSame('/', $response->header('Location'));
+        self::assertSame('noindex, nofollow', $response->header('X-Robots-Tag'));
         self::assertTrue($this->session->wasDestroyed());
         self::assertSame([], $this->session->all());
     }
@@ -285,6 +286,7 @@ final class AuthorizationMatrixTest extends TestCase
 
         self::assertSame(303, $response->status());
         self::assertSame('/login', $response->header('Location'));
+        self::assertSame('noindex, nofollow', $response->header('X-Robots-Tag'));
     }
 
     /**

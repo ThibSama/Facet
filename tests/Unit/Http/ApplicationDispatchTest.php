@@ -34,6 +34,7 @@ final class ApplicationDispatchTest extends TestCase
             'APP_NAME' => 'Facet',
             'APP_ENV' => $environment,
             'APP_KEY' => 'test-key',
+            'APP_URL' => 'https://portfolio.example',
             'APP_LOCALE' => 'en',
             'APP_DEBUG' => $debug ? 'true' : 'false',
         ]));
@@ -185,7 +186,15 @@ final class ApplicationDispatchTest extends TestCase
                 [200, Response::STATUS_NOT_IMPLEMENTED],
                 sprintf('%s (%s) answered %d', $route->name(), $path, $response->status())
             );
-            self::assertStringContainsString('<!doctype html>', $response->body());
+            if (str_starts_with($route->name(), 'technical.')) {
+                self::assertNotSame('', $response->body());
+                self::assertContains($response->header('Content-Type'), [
+                    'application/xml; charset=utf-8',
+                    'text/plain; charset=utf-8',
+                ]);
+            } else {
+                self::assertStringContainsString('<!doctype html>', $response->body());
+            }
         }
     }
 

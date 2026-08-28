@@ -19,7 +19,7 @@ final class RouteCatalog
      * Bumped whenever the route contract changes in a way consumers must react
      * to (a route added, removed, renamed, or its visibility changed).
      */
-    public const VERSION = '1.2.0';
+    public const VERSION = '1.3.0';
 
     public const HOME = 'home';
     public const PROJECTS_INDEX = 'projects.index';
@@ -31,6 +31,8 @@ final class RouteCatalog
     public const ADMIN_DASHBOARD = 'admin.dashboard';
     public const ADMIN_MESSAGES = 'admin.messages';
     public const CLIENT_AREA = 'client';
+    public const SITEMAP = 'technical.sitemap';
+    public const ROBOTS = 'technical.robots';
 
     /** @var array<string, RouteDefinition>|null */
     private static ?array $routes = null;
@@ -194,6 +196,22 @@ final class RouteCatalog
                 Visibility::Client,
                 DataSource::AuthSession,
                 'page.client'
+            ),
+            RouteDefinition::define(
+                self::SITEMAP,
+                '/sitemap.xml',
+                [HttpMethod::Get],
+                Visibility::Public,
+                DataSource::ContentCorpus,
+                'technical.sitemap'
+            ),
+            RouteDefinition::define(
+                self::ROBOTS,
+                '/robots.txt',
+                [HttpMethod::Get],
+                Visibility::Public,
+                DataSource::None,
+                'technical.robots'
             ),
         ];
 

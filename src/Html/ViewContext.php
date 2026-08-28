@@ -54,6 +54,24 @@ final class ViewContext
     }
 
     /**
+     * JSON safe to place inside a script element. `<`, quotes and ampersands
+     * are hex-escaped so corpus text cannot terminate the element.
+     */
+    public function json(mixed $value): Html
+    {
+        return Html::trusted(json_encode(
+            $value,
+            JSON_THROW_ON_ERROR
+                | JSON_HEX_TAG
+                | JSON_HEX_AMP
+                | JSON_HEX_APOS
+                | JSON_HEX_QUOT
+                | JSON_UNESCAPED_SLASHES
+                | JSON_UNESCAPED_UNICODE
+        ));
+    }
+
+    /**
      * Escapes and joins a list for display, e.g. a tag row.
      *
      * @param list<string|int|float|Stringable> $values

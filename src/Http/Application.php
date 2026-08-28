@@ -32,6 +32,10 @@ use Facet\Routing\RouteCatalog;
 use Facet\Routing\RouteDefinition;
 use Facet\Security\CsrfGuard;
 use Facet\Security\RateLimiter;
+use Facet\Seo\SeoMetadataFactory;
+use Facet\Seo\Robots;
+use Facet\Seo\Sitemap;
+use Facet\Seo\SiteUrl;
 use Facet\Session\ArraySession;
 use Facet\Session\Session;
 use Facet\Skin\Selection\DefaultSkinSelectionPolicy;
@@ -104,6 +108,10 @@ final class Application
 
     private AccessGuard $guard;
 
+    private SeoMetadataFactory $seo;
+
+    private ?SiteUrl $siteUrl;
+
     private ?Corpus $corpus = null;
 
     private function __construct(
@@ -140,6 +148,11 @@ final class Application
         $this->authenticator = new Authenticator($accounts, $session, $this->csrf);
         $this->auth = new AuthService($accounts);
         $this->guard = new AccessGuard($this->authenticator, $session, $this->csrf);
+        $this->siteUrl = SiteUrl::fromConfig($config);
+        $this->seo = new SeoMetadataFactory(
+            $this->siteUrl,
+            $config->get('APP_NAME', 'Facet') ?? 'Facet'
+        );
     }
 
     /**
@@ -277,17 +290,24 @@ final class Application
             $guarded = $this->guard->guard($route, $request);
 
             if ($guarded !== null) {
-                return $guarded;
+                return $privateResponse
+                    ? $guarded->withHeader('X-Robots-Tag', 'noindex, nofollow')
+                    : $guarded;
             }
 
-            return $this->dispatch($route, $match->parameters(), $request, $selection, $assets);
+            $response = $this->dispatch($route, $match->parameters(), $request, $selection, $assets);
+
+            return $privateResponse
+                || $route->name() === RouteCatalog::LOGIN
+                || !$request->isMethod(HttpMethod::Get)
+                    ? $response->withHeader('X-Robots-Tag', 'noindex, nofollow')
+                    : $response;
         } catch (HttpException $error) {
             return $this->errors->present(
                 $error,
                 $error->statusCode(),
                 $skin,
-                $this->sharedData($request, $skin, null, $assets)
-                    + ($privateResponse ? ['noIndex' => true] : []),
+                $this->sharedData($request, $skin, null, $assets) + ['noIndex' => true],
                 $request
             );
         } catch (Throwable $error) {
@@ -295,8 +315,7 @@ final class Application
                 $error,
                 Response::STATUS_INTERNAL_SERVER_ERROR,
                 $skin,
-                $this->sharedData($request, $skin, null, $assets)
-                    + ($privateResponse ? ['noIndex' => true] : []),
+                $this->sharedData($request, $skin, null, $assets) + ['noIndex' => true],
                 $request
             );
         }
@@ -316,7 +335,20 @@ final class Application
         SkinSelection $selection,
         AssetBundle $assets
     ): Response {
+        if ($route->name() === RouteCatalog::SITEMAP) {
+            return $this->sitemap();
+        }
+
+        if ($route->name() === RouteCatalog::ROBOTS) {
+            return $this->robots();
+        }
+
         $shared = $this->sharedData($request, $selection->skin(), $selection, $assets);
+
+        $project = $route->name() === RouteCatalog::PROJECTS_SHOW
+            ? $this->requireProject($parameters['slug'] ?? '')
+            : null;
+        $shared['seo'] = $this->seo->forRoute($route, $request, $this->corpus(), $project);
 
         return match ($route->name()) {
             RouteCatalog::HOME => $this->page($route, $selection, $shared + [
@@ -329,7 +361,7 @@ final class Application
                 'projects' => $this->corpus()->projects(),
             ]),
             RouteCatalog::PROJECTS_SHOW => $this->page($route, $selection, $shared + [
-                'project' => $this->requireProject($parameters['slug'] ?? ''),
+                'project' => $project,
             ]),
             RouteCatalog::ABOUT => $this->page($route, $selection, $shared + [
                 'profile' => $this->corpus()->profile(),
@@ -752,7 +784,30 @@ final class Application
      */
     private function page(RouteDefinition $route, SkinSelection $selection, array $data): Response
     {
-        return Response::html($this->renderer->render($selection->skin(), $route->template(), $data));
+        $response = Response::html($this->renderer->render($selection->skin(), $route->template(), $data));
+
+        return ($data['noIndex'] ?? false) === true
+            ? $response->withHeader('X-Robots-Tag', 'noindex, nofollow')
+            : $response;
+    }
+
+    private function sitemap(): Response
+    {
+        if ($this->siteUrl === null) {
+            throw HttpException::internal('APP_URL is not a valid public HTTP(S) URL.');
+        }
+
+        return Response::text(Sitemap::render($this->siteUrl, $this->corpus()))
+            ->withHeader('Content-Type', 'application/xml; charset=utf-8');
+    }
+
+    private function robots(): Response
+    {
+        if ($this->siteUrl === null) {
+            throw HttpException::internal('APP_URL is not a valid public HTTP(S) URL.');
+        }
+
+        return Response::text(Robots::render($this->siteUrl));
     }
 
     /**

@@ -22,16 +22,19 @@
  * @var string                     $locale
  * @var string                     $path
  * @var string|null                $title
+ * @var \Facet\Seo\SeoMetadata|null $seo
  * @var \Facet\Navigation\Navigation|null $navigation
  */
 
 declare(strict_types=1);
 
 use Facet\Navigation\Navigation;
+use Facet\Seo\SeoMetadata;
 
-$documentTitle = isset($title) && is_string($title) && $title !== ''
+$seo = ($seo ?? null) instanceof SeoMetadata ? $seo : null;
+$documentTitle = $seo?->title() ?? (isset($title) && is_string($title) && $title !== ''
     ? $title . ' — ' . $appName
-    : $appName;
+    : $appName);
 
 $currentPath = isset($path) && is_string($path) ? $path : '/';
 
@@ -51,10 +54,28 @@ $navigationId = 'facet-primary-nav';
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
-    <?php if (($noIndex ?? false) === true): ?>
+    <?php if (($noIndex ?? false) === true || ($seo !== null && !$seo->isIndexable())): ?>
     <meta name="robots" content="noindex, nofollow">
     <?php endif; ?>
     <title><?= $view->text($documentTitle) ?></title>
+    <?php if ($seo?->description() !== null): ?>
+    <meta name="description" content="<?= $view->attr($seo->description()) ?>">
+    <?php endif; ?>
+    <?php if ($seo?->canonicalUrl() !== null): ?>
+    <link rel="canonical" href="<?= $view->url($seo->canonicalUrl()) ?>">
+    <?php endif; ?>
+    <?php if ($seo?->hasSocialGraph() === true): ?>
+    <meta property="og:title" content="<?= $view->attr($seo->title()) ?>">
+    <meta property="og:description" content="<?= $view->attr($seo->description()) ?>">
+    <meta property="og:url" content="<?= $view->url($seo->canonicalUrl()) ?>">
+    <meta property="og:type" content="<?= $view->attr($seo->openGraphType()) ?>">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="<?= $view->attr($seo->title()) ?>">
+    <meta name="twitter:description" content="<?= $view->attr($seo->description()) ?>">
+    <?php endif; ?>
+    <?php foreach ($seo?->structuredData() ?? [] as $structuredData): ?>
+    <script type="application/ld+json"><?= $view->raw($view->json($structuredData)) ?></script>
+    <?php endforeach; ?>
     <?php require __DIR__ . '/partials/theme-bootstrap.php'; ?>
     <?php foreach ($assets->styles() as $style): ?>
     <link rel="stylesheet" href="<?= $view->url($style) ?>">

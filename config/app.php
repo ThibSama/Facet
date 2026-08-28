@@ -15,7 +15,8 @@ return static function (Config $config): array {
         'name' => $config->get('APP_NAME', 'Facet'),
         'env' => $config->environment(),
         'debug' => $config->isDebug(),
-        'url' => $config->get('APP_URL', 'http://localhost:8000'),
+        // No deployment-independent URL is safe for canonical SEO output.
+        'url' => $config->get('APP_URL'),
         'locale' => $config->get('APP_LOCALE', 'en'),
     ];
 };

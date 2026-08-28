@@ -140,7 +140,7 @@ final class AdminInboxTest extends TestCase
         )->status());
     }
 
-    public function testOnlyPrivateResponsesCarryRobotsNoindex(): void
+    public function testPrivateAndErrorResponsesCarryRobotsNoindex(): void
     {
         $this->signIn();
 
@@ -152,7 +152,14 @@ final class AdminInboxTest extends TestCase
             self::assertStringContainsString('<meta name="robots" content="noindex, nofollow">', $response->body());
         }
 
-        foreach (['/', '/projects', '/about', '/contact', '/not-found'] as $path) {
+        $notFound = $this->app()->handle(Request::create('GET', '/not-found'));
+        self::assertSame(404, $notFound->status());
+        self::assertStringContainsString(
+            '<meta name="robots" content="noindex, nofollow">',
+            $notFound->body()
+        );
+
+        foreach (['/', '/projects', '/about', '/contact'] as $path) {
             self::assertStringNotContainsString(
                 'name="robots"',
                 $this->app()->handle(Request::create('GET', $path))->body(),

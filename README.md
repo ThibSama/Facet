@@ -267,7 +267,9 @@ APP_ENV=local APP_KEY=dev php -d variables_order=EGPCS public/index.php \
 `Facet\Config\Config` reads real environment variables first and falls back to
 `.env` only for values the environment does not already define.
 
-- Non-sensitive keys may carry a safe default (`APP_NAME`, `APP_URL`, …).
+- Non-sensitive keys may carry a safe default (`APP_NAME`, `APP_LOCALE`, …).
+  `APP_URL` is the deliberate exception: canonical SEO output has no safe
+  deployment-independent origin, so production never falls back to localhost.
 - Sensitive keys (`APP_KEY`, `DB_DSN`, `DB_USERNAME`, `DB_PASSWORD`) have **no
   fallback** — `Config::get()` on them ignores any caller-supplied default and
   throws when the value is missing. A database boundary that can invent its own

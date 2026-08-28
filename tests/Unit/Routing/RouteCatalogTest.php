@@ -66,6 +66,14 @@ final class RouteCatalogTest extends TestCase
                 RouteCatalog::CLIENT_AREA, '/client', ['GET'],
                 Visibility::Client, DataSource::AuthSession, 'page.client',
             ],
+            '/sitemap.xml' => [
+                RouteCatalog::SITEMAP, '/sitemap.xml', ['GET'],
+                Visibility::Public, DataSource::ContentCorpus, 'technical.sitemap',
+            ],
+            '/robots.txt' => [
+                RouteCatalog::ROBOTS, '/robots.txt', ['GET'],
+                Visibility::Public, DataSource::None, 'technical.robots',
+            ],
         ];
     }
 
@@ -101,8 +109,8 @@ final class RouteCatalogTest extends TestCase
         $actual = RouteCatalog::names();
         sort($actual);
 
-        self::assertSame($expected, $actual, 'The catalog must declare exactly the ten canonical routes');
-        self::assertCount(10, RouteCatalog::all());
+        self::assertSame($expected, $actual, 'The catalog must declare exactly the twelve canonical routes');
+        self::assertCount(12, RouteCatalog::all());
     }
 
     public function testEveryRouteDeclaresMethodVisibilityDataSourceAndTemplate(): void
@@ -110,7 +118,7 @@ final class RouteCatalogTest extends TestCase
         foreach (RouteCatalog::all() as $name => $route) {
             self::assertNotEmpty($route->methods(), $name . ' must declare at least one method');
             self::assertNotSame('', $route->template(), $name . ' must declare a logical template');
-            self::assertStringStartsWith('page.', $route->template(), $name . ' template must be a logical id');
+            self::assertMatchesRegularExpression('/^(page|technical)\./', $route->template(), $name . ' template must be a logical id');
             self::assertSame($name, $route->name());
         }
     }
@@ -250,7 +258,7 @@ final class RouteCatalogTest extends TestCase
     public function testCatalogDeclaresAContractVersion(): void
     {
         self::assertMatchesRegularExpression('/^\d+\.\d+\.\d+$/', RouteCatalog::VERSION);
-        self::assertSame('1.2.0', RouteCatalog::VERSION);
+        self::assertSame('1.3.0', RouteCatalog::VERSION);
     }
 
     public function testCatalogIsIndependentOfRendering(): void

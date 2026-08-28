@@ -50,6 +50,10 @@ final class RouteCatalogTest extends TestCase
                 RouteCatalog::LOGIN, '/login', ['GET', 'POST'],
                 Visibility::Guest, DataSource::AuthSession, 'page.login',
             ],
+            '/logout' => [
+                RouteCatalog::LOGOUT, '/logout', ['POST'],
+                Visibility::Authenticated, DataSource::AuthSession, 'page.logout',
+            ],
             '/admin' => [
                 RouteCatalog::ADMIN_DASHBOARD, '/admin', ['GET'],
                 Visibility::Admin, DataSource::ContentCorpus, 'page.admin.dashboard',
@@ -60,7 +64,7 @@ final class RouteCatalogTest extends TestCase
             ],
             '/client' => [
                 RouteCatalog::CLIENT_AREA, '/client', ['GET'],
-                Visibility::Authenticated, DataSource::AuthSession, 'page.client',
+                Visibility::Client, DataSource::AuthSession, 'page.client',
             ],
         ];
     }
@@ -97,8 +101,8 @@ final class RouteCatalogTest extends TestCase
         $actual = RouteCatalog::names();
         sort($actual);
 
-        self::assertSame($expected, $actual, 'The catalog must declare exactly the nine canonical routes');
-        self::assertCount(9, RouteCatalog::all());
+        self::assertSame($expected, $actual, 'The catalog must declare exactly the ten canonical routes');
+        self::assertCount(10, RouteCatalog::all());
     }
 
     public function testEveryRouteDeclaresMethodVisibilityDataSourceAndTemplate(): void
@@ -123,7 +127,12 @@ final class RouteCatalogTest extends TestCase
 
     public function testProtectedRoutesAreNotPubliclyReachable(): void
     {
-        foreach ([RouteCatalog::ADMIN_DASHBOARD, RouteCatalog::ADMIN_MESSAGES, RouteCatalog::CLIENT_AREA] as $name) {
+        foreach ([
+            RouteCatalog::ADMIN_DASHBOARD,
+            RouteCatalog::ADMIN_MESSAGES,
+            RouteCatalog::CLIENT_AREA,
+            RouteCatalog::LOGOUT,
+        ] as $name) {
             $route = RouteCatalog::get($name);
 
             self::assertTrue($route->visibility()->requiresAuthentication(), $name . ' must require auth');
@@ -138,6 +147,40 @@ final class RouteCatalogTest extends TestCase
         self::assertNotContains(RouteCatalog::ADMIN_DASHBOARD, $publicNames);
         self::assertNotContains(RouteCatalog::ADMIN_MESSAGES, $publicNames);
         self::assertNotContains(RouteCatalog::CLIENT_AREA, $publicNames);
+        self::assertNotContains(RouteCatalog::LOGOUT, $publicNames);
+    }
+
+    /**
+     * The client area is client-only, not "anyone signed in".
+     *
+     * Declared here because it is a contract change PORT-93 made deliberately:
+     * before it, an administrator could reach /client simply by being
+     * authenticated.
+     */
+    public function testTheClientAreaIsTheOnlyClientVisibility(): void
+    {
+        $client = array_map(
+            static fn (RouteDefinition $r): string => $r->name(),
+            RouteCatalog::withVisibility(Visibility::Client)
+        );
+
+        self::assertSame([RouteCatalog::CLIENT_AREA], $client);
+        self::assertTrue(Visibility::Client->isRoleSpecific());
+        self::assertTrue(Visibility::Admin->isRoleSpecific());
+        self::assertFalse(Visibility::Authenticated->isRoleSpecific());
+    }
+
+    /**
+     * Logout is a mutation, so it is a POST and only a POST. A GET /logout is
+     * triggerable by any third-party page that can make a browser fetch a URL.
+     */
+    public function testLogoutIsPostOnlyAndRequiresAuthentication(): void
+    {
+        $logout = RouteCatalog::get(RouteCatalog::LOGOUT);
+
+        self::assertSame(['POST'], $logout->methodNames());
+        self::assertFalse($logout->accepts(HttpMethod::Get));
+        self::assertTrue($logout->visibility()->requiresAuthentication());
     }
 
     public function testAdminRoutesAreTheOnlyAdminVisibility(): void
@@ -152,7 +195,13 @@ final class RouteCatalogTest extends TestCase
         self::assertSame([RouteCatalog::ADMIN_DASHBOARD, RouteCatalog::ADMIN_MESSAGES], $admin);
     }
 
-    public function testOnlyContactAndLoginAcceptPost(): void
+    /**
+     * The full list of routes that accept a body, which is the list of routes
+     * that can change something. It is asserted exhaustively rather than by
+     * membership: a new POST route is a change to the security surface, and it
+     * should not be possible to add one without this test noticing.
+     */
+    public function testOnlyContactLoginAndLogoutAcceptPost(): void
     {
         $posting = [];
 
@@ -164,7 +213,7 @@ final class RouteCatalogTest extends TestCase
 
         sort($posting);
 
-        self::assertSame([RouteCatalog::CONTACT, RouteCatalog::LOGIN], $posting);
+        self::assertSame([RouteCatalog::CONTACT, RouteCatalog::LOGIN, RouteCatalog::LOGOUT], $posting);
     }
 
     public function testProjectShowIsTheOnlyDynamicRoute(): void
@@ -188,9 +237,14 @@ final class RouteCatalogTest extends TestCase
         RouteCatalog::get('nope');
     }
 
+    /**
+     * The contract version is bumped when consumers must react — here, a route
+     * was added and another's visibility narrowed.
+     */
     public function testCatalogDeclaresAContractVersion(): void
     {
         self::assertMatchesRegularExpression('/^\d+\.\d+\.\d+$/', RouteCatalog::VERSION);
+        self::assertSame('1.1.0', RouteCatalog::VERSION);
     }
 
     public function testCatalogIsIndependentOfRendering(): void

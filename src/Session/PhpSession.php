@@ -26,8 +26,11 @@ namespace Facet\Session;
  *   silently never persists is worse than one that is honest about its
  *   transport.
  *
- * No identifier is regenerated here. Fixation handling belongs with the login
- * that creates a privilege to fixate, which is a later checkpoint.
+ * Since PORT-92 the identifier's whole lifecycle lives here too. Regeneration,
+ * server-side destruction and the expiry of the cookie itself are three
+ * different mechanisms, and all three are needed for a logout to mean anything
+ * — so all three are in this file and in no other, behind the two lifecycle
+ * methods {@see Session} declares.
  */
 final class PhpSession implements Session
 {
@@ -128,5 +131,67 @@ final class PhpSession implements Session
         $this->forget($key);
 
         return $value;
+    }
+
+    /**
+     * Re-key the session, destroying the file the old identifier named.
+     *
+     * `true` is the argument that matters. Without it the previous session
+     * record is left on the server, and an attacker holding the old identifier
+     * keeps a live, still-readable session — which is most of what fixation was
+     * trying to achieve in the first place. With it, the old name refers to
+     * nothing the moment this returns.
+     *
+     * PHP moves `$_SESSION` across for us, so the CSRF token minted for the
+     * login form survives the change of identifier.
+     */
+    public function regenerate(): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return;
+        }
+
+        session_regenerate_id(true);
+    }
+
+    /**
+     * End the session on the server *and* in the browser.
+     *
+     * Three steps, none of which is redundant. Emptying `$_SESSION` drops the
+     * data this request could still read. `session_destroy()` removes the
+     * record the identifier names, so replaying the old cookie resumes nothing.
+     * And re-sending the cookie with a past expiry is what stops the browser
+     * from presenting a name that no longer exists on every subsequent request.
+     *
+     * The expiry cookie is sent with the same path, domain and flags the
+     * session cookie was set with: a browser matches on those attributes, and a
+     * deletion that differs in any of them simply sets a second cookie beside
+     * the one it meant to remove.
+     */
+    public function destroy(): void
+    {
+        $_SESSION = [];
+
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return;
+        }
+
+        $parameters = session_get_cookie_params();
+
+        // Headers already sent means the cookie cannot be expired; the session
+        // is still destroyed below, so the identifier the browser keeps
+        // presenting names nothing.
+        if (!headers_sent()) {
+            setcookie(self::COOKIE_NAME, '', [
+                'expires' => 1,
+                'path' => $parameters['path'],
+                'domain' => $parameters['domain'],
+                'secure' => $parameters['secure'],
+                'httponly' => $parameters['httponly'],
+                'samesite' => $parameters['samesite'],
+            ]);
+        }
+
+        session_destroy();
     }
 }

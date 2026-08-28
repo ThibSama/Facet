@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Facet\Http;
 
+use Facet\Account\AccountRepository;
+use Facet\Account\AccountRepositoryFactory;
 use Facet\Asset\AssetBundle;
 use Facet\Asset\AssetManager;
 use Facet\Config\Config;
@@ -14,6 +16,9 @@ use Facet\Contact\ContactValidator;
 use Facet\Content\Corpus;
 use Facet\Content\CorpusLoader;
 use Facet\Content\Project;
+use Facet\Auth\AccessPolicy;
+use Facet\Auth\AuthService;
+use Facet\Auth\Authenticator;
 use Facet\Navigation\Navigation;
 use Facet\Routing\HttpMethod;
 use Facet\Routing\RouteCatalog;
@@ -37,14 +42,22 @@ use Throwable;
 /**
  * The HTTP application: a Request goes in, a Response comes out.
  *
- * It is a pure function of its input. No superglobal is read, no header is
- * sent, nothing is echoed — which is what allows every dispatch rule below,
- * including the error paths, to be exercised in a plain unit test.
+ * It reads no superglobal, sends no header of its own and echoes nothing —
+ * which is what allows every dispatch rule below, including the error paths, to
+ * be exercised in a plain unit test. Its one effect on the world outside the
+ * Response is the session, and that reaches the SAPI only through the
+ * {@see Session} seam: an application booted with an {@see ArraySession} — as
+ * every in-process test boots one — performs no side effect at all.
  *
  * The class knows about routes, assets, skins and content, and about none of
  * their internals: it asks the router which route a request reached, a route
  * for its logical view, a policy for a skin, and the asset layer for that
  * skin's URLs. It never names a template file.
+ *
+ * Since PORT-93 it also asks {@see AccessGuard} whether a request may proceed,
+ * once, between routing and dispatch. No handler below re-checks who is asking
+ * and no template ever decides: authorisation is a property of the route
+ * contract, applied in one place.
  */
 final class Application
 {
@@ -74,6 +87,12 @@ final class Application
 
     private RateLimiter $limiter;
 
+    private Authenticator $authenticator;
+
+    private AuthService $auth;
+
+    private AccessGuard $guard;
+
     private ?Corpus $corpus = null;
 
     private function __construct(
@@ -87,7 +106,8 @@ final class Application
         ErrorPresenter $errors,
         Session $session,
         ContactMessageStore $messages,
-        RateLimiter $limiter
+        RateLimiter $limiter,
+        AccountRepository $accounts
     ) {
         $this->basePath = $basePath;
         $this->config = $config;
@@ -102,6 +122,9 @@ final class Application
         $this->limiter = $limiter;
         $this->validator = new ContactValidator();
         $this->csrf = new CsrfGuard();
+        $this->authenticator = new Authenticator($accounts, $session, $this->csrf);
+        $this->auth = new AuthService($accounts);
+        $this->guard = new AccessGuard($this->authenticator, $session, $this->csrf);
     }
 
     /**
@@ -121,7 +144,8 @@ final class Application
         ?Router $router = null,
         ?Session $session = null,
         ?ContactMessageStore $messages = null,
-        ?Clock $clock = null
+        ?Clock $clock = null,
+        ?AccountRepository $accounts = null
     ): self {
         $basePath = rtrim(str_replace('\\', '/', $basePath), '/');
         $config ??= Config::fromEnvironment($basePath);
@@ -142,7 +166,11 @@ final class Application
             // check refuses rather than waves a POST through.
             $session ?? new ArraySession(),
             $messages ?? ContactMessageStoreFactory::fromConfig($config),
-            new RateLimiter($clock ?? new SystemClock())
+            new RateLimiter($clock ?? new SystemClock()),
+            // With no database configured there are no accounts, so every login
+            // fails generically and every session id resolves to nobody. An
+            // unconfigured deployment is a public site, not an open one.
+            $accounts ?? AccountRepositoryFactory::fromConfig($config)
         );
     }
 
@@ -216,7 +244,19 @@ final class Application
                 );
             }
 
-            return $this->dispatch($match->route(), $match->parameters(), $request, $selection, $assets);
+            $route = $match->route();
+
+            // Authorisation happens here — after routing, before dispatch, and
+            // in one place. No handler below this line re-checks who is asking,
+            // and no template is ever the boundary: a route that is not
+            // permitted never reaches the code that would render it.
+            $guarded = $this->guard->guard($route, $request);
+
+            if ($guarded !== null) {
+                return $guarded;
+            }
+
+            return $this->dispatch($route, $match->parameters(), $request, $selection, $assets);
         } catch (HttpException $error) {
             return $this->errors->present(
                 $error,
@@ -271,6 +311,8 @@ final class Application
                 'experiences' => $this->corpus()->experiences(),
             ]),
             RouteCatalog::CONTACT => $this->contact($route, $request, $selection, $shared),
+            RouteCatalog::LOGIN => $this->login($route, $request, $selection, $shared),
+            RouteCatalog::LOGOUT => $this->logout(),
             default => throw HttpException::notImplemented(sprintf(
                 'Route "%s" is declared but has no handler yet.',
                 $route->name()
@@ -460,6 +502,125 @@ final class Application
         return Response::html(
             $this->renderer->render($selection->skin(), $route->template(), $state + $defaults + $shared),
             $status
+        );
+    }
+
+    // ------------------------------------------------------------ auth
+
+    /** The form field the address is submitted in. */
+    private const LOGIN_EMAIL = 'email';
+
+    /** The form field the password is submitted in — and never echoed back. */
+    private const LOGIN_PASSWORD = 'password';
+
+    /**
+     * The only thing a failed sign-in is ever told.
+     *
+     * One sentence for an unknown address, a wrong password and a disabled
+     * account alike. Distinguishing them would turn this form into a way of
+     * asking whether an address has an account here, and telling somebody that
+     * their account is disabled tells whoever stole their password the same.
+     */
+    private const LOGIN_FAILED = 'Those details did not match an account that can sign in.';
+
+    /**
+     * GET renders the form; POST decides whether it identifies anyone.
+     *
+     * Two of this handler's rules are enforced before it runs, by
+     * {@see AccessGuard}: an already-authenticated visitor never reaches it —
+     * they are redirected to their own area — and a POST without this session's
+     * CSRF token is refused with 403. What remains here is the credential
+     * decision itself, and it is deliberately the shortest path in the file.
+     *
+     * @param array<string, mixed> $shared
+     */
+    private function login(
+        RouteDefinition $route,
+        Request $request,
+        SkinSelection $selection,
+        array $shared
+    ): Response {
+        if (!$request->isMethod(HttpMethod::Post)) {
+            return $this->loginPage($route, $selection, $shared);
+        }
+
+        $email = trim($request->bodyParam(self::LOGIN_EMAIL, '') ?? '');
+        $account = $this->auth->attempt($email, $request->bodyParam(self::LOGIN_PASSWORD, '') ?? '');
+
+        if ($account === null) {
+            // The address comes back so a typo can be corrected; the password
+            // does not, and there is no branch here in which it could. A
+            // rejected form that redisplays a password writes a credential into
+            // markup, into the browser's cache and into anything that logs a
+            // response body.
+            return $this->loginPage($route, $selection, $shared, [
+                'values' => [self::LOGIN_EMAIL => $email],
+                'notice' => ['kind' => 'error', 'text' => self::LOGIN_FAILED],
+            ], Response::STATUS_UNPROCESSABLE_CONTENT);
+        }
+
+        // Re-keys the session before a single authenticated byte is written to
+        // it, then rotates the CSRF token. Both live in the authenticator, so
+        // no handler can perform half of a sign-in.
+        $this->authenticator->login($account);
+
+        // 303, so the browser follows with a GET and a refresh of the landing
+        // page cannot re-post credentials. Where it lands is decided by the
+        // role on the row that was just read — never by anything submitted.
+        return Response::redirect(
+            AccessPolicy::homePathFor($account->role()),
+            Response::STATUS_SEE_OTHER
+        );
+    }
+
+    /**
+     * Renders the sign-in form in whatever state the handler decided.
+     *
+     * Every state goes through here, so a form re-rendered after a refusal is
+     * as submittable as the one first served — including the token, which is
+     * read (and minted if absent) exactly once per rendering.
+     *
+     * @param array<string, mixed> $shared
+     * @param array<string, mixed> $state
+     */
+    private function loginPage(
+        RouteDefinition $route,
+        SkinSelection $selection,
+        array $shared,
+        array $state = [],
+        int $status = Response::STATUS_OK
+    ): Response {
+        $defaults = [
+            'csrfField' => CsrfGuard::FIELD,
+            'csrfToken' => $this->csrf->token($this->session),
+            'emailField' => self::LOGIN_EMAIL,
+            'passwordField' => self::LOGIN_PASSWORD,
+            'values' => [self::LOGIN_EMAIL => ''],
+            'notice' => null,
+        ];
+
+        return Response::html(
+            $this->renderer->render($selection->skin(), $route->template(), $state + $defaults + $shared),
+            $status
+        );
+    }
+
+    /**
+     * Ends the session and sends the visitor to the public site.
+     *
+     * It renders nothing — the route declares a template it never reaches,
+     * because a logout that returns a page is a page served to somebody who no
+     * longer has a session to render it against. Both of its preconditions are
+     * already settled by the guard: the request is a POST from an authenticated
+     * visitor, carrying this session's CSRF token.
+     */
+    private function logout(): Response
+    {
+        $this->authenticator->logout();
+
+        return Response::redirect(
+            RouteCatalog::get(RouteCatalog::HOME)->path(),
+            Response::STATUS_SEE_OTHER
         );
     }
 

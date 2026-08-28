@@ -13,11 +13,23 @@ namespace Facet\Session;
  * real session still renders, but every CSRF check it performs compares
  * against a token that no other request can have seen, so a POST is refused
  * rather than accepted on an absent guard.
+ *
+ * The identifier lifecycle is modelled rather than performed: there is no
+ * cookie to re-key, so {@see regenerate()} records that it happened and
+ * {@see destroy()} does what destruction has to mean here — the data is gone.
+ * Counting regenerations is what lets an in-process test assert that login
+ * re-keys *before* it writes, which is the ordering the whole fixation defence
+ * rests on; that the re-keying really changes a cookie is a claim only the real
+ * SAPI can settle, and {@see \Facet\Tests\Smoke\AuthHttpFlowTest} settles it.
  */
 final class ArraySession implements Session
 {
     /** @var array<string, string> */
     private array $values;
+
+    private int $regenerations = 0;
+
+    private bool $destroyed = false;
 
     /**
      * @param array<string, string> $values
@@ -56,11 +68,35 @@ final class ArraySession implements Session
         return $value;
     }
 
+    public function regenerate(): void
+    {
+        $this->regenerations++;
+    }
+
+    public function destroy(): void
+    {
+        $this->values = [];
+        $this->destroyed = true;
+    }
+
     /**
      * @return array<string, string>
      */
     public function all(): array
     {
         return $this->values;
+    }
+
+    /**
+     * How many times the identifier would have been re-keyed.
+     */
+    public function regenerations(): int
+    {
+        return $this->regenerations;
+    }
+
+    public function wasDestroyed(): bool
+    {
+        return $this->destroyed;
     }
 }

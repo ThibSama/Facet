@@ -7,9 +7,12 @@ namespace Facet\Routing;
 /**
  * Who a route is reachable by.
  *
- * This is a machine-testable declaration, not documentation: authorisation
- * behaviour is out of scope here, but the contract each future dispatcher must
- * honour is expressed as data.
+ * This is a machine-testable declaration, and since PORT-93 it is also the
+ * input the central guard reads: {@see \Facet\Auth\AccessPolicy} turns one of
+ * these cases plus the resolved principal into an access decision, before any
+ * protected handler runs. The enum stays free of HTTP and of roles-as-objects —
+ * it declares *what a route requires*, and the policy decides what to do about
+ * it.
  */
 enum Visibility: string
 {
@@ -25,9 +28,30 @@ enum Visibility: string
     /** Requires an authenticated principal holding the admin role. */
     case Admin = 'admin';
 
+    /**
+     * Requires an authenticated principal holding the client role.
+     *
+     * Declared separately from {@see self::Authenticated} because "any signed-in
+     * person" and "a client" are different permissions, and the client area is
+     * the second. An admin is not a client with extra powers: they see a
+     * different area, and the two are mutually exclusive by design rather than
+     * by hierarchy. A hierarchy would make every future client-only surface
+     * silently visible to administrators, which is the opposite of what a
+     * client area is for.
+     */
+    case Client = 'client';
+
     public function requiresAuthentication(): bool
     {
-        return $this === self::Authenticated || $this === self::Admin;
+        return $this === self::Authenticated || $this === self::Admin || $this === self::Client;
+    }
+
+    /**
+     * Whether the visibility names one specific role rather than any principal.
+     */
+    public function isRoleSpecific(): bool
+    {
+        return $this === self::Admin || $this === self::Client;
     }
 
     /**

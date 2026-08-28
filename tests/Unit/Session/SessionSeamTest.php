@@ -172,11 +172,17 @@ final class SessionSeamTest extends TestCase
     }
 
     /**
-     * The seam is deliberately not an authentication seam. PORT-92 owns login,
-     * roles and fixation; introducing any of it here would be building the next
-     * checkpoint's surface without its tests.
+     * The seam carries the identifier's lifecycle, and no notion of identity.
+     *
+     * PORT-92 gave it exactly two new operations, both about the *session*:
+     * re-key it, and end it. What none of the three files may learn is what a
+     * session means — there is no user here, no role, no password and no login.
+     * That separation is what keeps roles unforgeable from a session: the store
+     * holds an account id as an opaque string, and
+     * {@see \Facet\Auth\Authenticator} is the only thing that can resolve it
+     * into a principal, by reading the database.
      */
-    public function testTheSeamCarriesNoAuthenticationConcern(): void
+    public function testTheSeamCarriesNoIdentityConcern(): void
     {
         foreach (['Session', 'ArraySession', 'PhpSession'] as $class) {
             $source = self::code(self::root() . '/src/Session/' . $class . '.php');
@@ -185,18 +191,85 @@ final class SessionSeamTest extends TestCase
                 self::assertStringNotContainsString(
                     $concern . '(',
                     $source,
-                    $class . ' must not grow an authentication surface at this checkpoint'
+                    $class . ' must not grow an identity surface'
                 );
             }
         }
 
-        // And the interface stays the four operations the contact form needs.
+        // The store operations the application needs, and the two lifecycle
+        // operations authentication needs. Asserted exhaustively: a session
+        // interface that grows quietly is a boundary that has stopped being one.
         self::assertSame(
-            ['has', 'get', 'put', 'forget', 'pull'],
+            ['has', 'get', 'put', 'forget', 'pull', 'regenerate', 'destroy'],
             array_map(
                 static fn (\ReflectionMethod $method): string => $method->getName(),
                 (new ReflectionClass(Session::class))->getMethods()
             )
         );
+    }
+
+    // ------------------------------------------------------- the lifecycle
+
+    /**
+     * Re-keying keeps the data. The identifier is what is untrusted after a
+     * privilege change, not the contents — the CSRF token the login form was
+     * submitted with belongs to the same person on the other side of it.
+     */
+    public function testRegeneratingKeepsTheDataAndIsRecorded(): void
+    {
+        $session = new ArraySession(['csrf.token' => 'abc']);
+
+        self::assertSame(0, $session->regenerations());
+
+        $session->regenerate();
+
+        self::assertSame(1, $session->regenerations());
+        self::assertSame('abc', $session->get('csrf.token'), 'Re-keying must not empty the session');
+    }
+
+    /**
+     * Destruction is total. Not "the authentication key is gone" — everything.
+     */
+    public function testDestroyingClearsEverything(): void
+    {
+        $session = new ArraySession(['csrf.token' => 'abc', 'auth.account' => '7', 'contact.flash' => 'sent']);
+
+        $session->destroy();
+
+        self::assertTrue($session->wasDestroyed());
+        self::assertSame([], $session->all());
+
+        foreach (['csrf.token', 'auth.account', 'contact.flash'] as $key) {
+            self::assertFalse($session->has($key), $key . ' must not survive destruction');
+        }
+    }
+
+    /**
+     * The adapter's half of the lifecycle, asserted on the source for the same
+     * reason the cookie parameters are: a started session in a CLI test process
+     * is both unavailable and irreversible.
+     *
+     * Two details are checked because both are easy to write wrongly and
+     * neither fails visibly. `session_regenerate_id(true)` deletes the old
+     * record — without the argument the previous session stays live and
+     * readable under the identifier an attacker planted, which is most of what
+     * fixation was after. And a logout expires the cookie as well as destroying
+     * the record, so the browser stops presenting a name that no longer exists.
+     */
+    public function testTheAdapterRegeneratesDestructivelyAndExpiresItsCookie(): void
+    {
+        $source = self::code(self::root() . '/src/Session/PhpSession.php');
+
+        self::assertStringContainsString('session_regenerate_id(true)', $source);
+        self::assertStringContainsString('session_destroy()', $source);
+        self::assertStringContainsString('$_SESSION = []', $source);
+        self::assertStringContainsString('setcookie(', $source);
+
+        // The expiry cookie must reuse the flags the session cookie was set
+        // with: a browser matches on them, and a deletion that differs in any
+        // of them sets a second cookie instead of removing the first.
+        foreach (["'path' => \$parameters['path']", "'secure' => \$parameters['secure']", "'httponly' => \$parameters['httponly']"] as $flag) {
+            self::assertStringContainsString($flag, $source, 'The expiry cookie must match the session cookie');
+        }
     }
 }

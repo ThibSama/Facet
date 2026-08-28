@@ -132,9 +132,10 @@ Facet separates *what the site says* from *how it looks*, before any skin
 exists.
 
 **Routes** are declared as data in `Facet\Routing\RouteCatalog`. Each of the
-nine canonical routes states its path, accepted methods, visibility, data source
+ten canonical routes states its path, accepted methods, visibility, data source
 and a *logical* template id — never a file path. Nothing in routing knows how a
-page is rendered.
+page is rendered. The catalog carries a contract version (`1.1.0`) that is
+bumped whenever a route is added, removed or re-scoped.
 
 | Path                | Methods    | Visibility    | Data source    |
 | ------------------- | ---------- | ------------- | -------------- |
@@ -144,9 +145,13 @@ page is rendered.
 | `/about`            | GET        | public        | content corpus |
 | `/contact`          | GET, POST  | public        | message store  |
 | `/login`            | GET, POST  | guest         | auth session   |
+| `/logout`           | POST       | authenticated | auth session   |
 | `/admin`            | GET        | admin         | content corpus |
 | `/admin/messages`   | GET        | admin         | message store  |
-| `/client`           | GET        | authenticated | auth session   |
+| `/client`           | GET        | client        | auth session   |
+
+Visibility is enforced centrally, between routing and dispatch — see
+[Authentication and access control](#authentication-and-access-control).
 
 **Content** lives in `content/` as versioned JSON — outside any database and
 outside any skin — and is loaded into the typed structures in `Facet\Content`
@@ -414,12 +419,78 @@ hash: both end up in server-side query logs and in this repository respectively.
 
 ---
 
+## Authentication and access control
+
+Signing in is a POST to `/login`; signing out is a POST to `/logout`. There is
+no registration, no password reset and no remember-me: accounts are minted from
+a shell (see [The first administrator](#the-first-administrator)), and a session
+lasts until it is ended.
+
+**The session stores an account id, and nothing else.** No role, no email, no
+status. Every protected request re-reads the row that id names, so an account
+that is disabled, deleted or given a different role loses or gains access on the
+*next request*, with nobody having to hunt down an open session. A role that
+lived in the session would be a role the application trusts without re-reading —
+and requests carry no role at all: a `role=admin` field, cookie or header is
+just another string in the request, and nothing reads it.
+
+**Access is enforced once, between routing and dispatch.** `Facet\Http\AccessGuard`
+asks `Facet\Auth\AccessPolicy` for a decision from the route's declared
+visibility and the resolved principal, before any handler runs — so a route is
+guarded whether or not its handler exists yet, and a template is never the
+boundary. The matrix:
+
+|                    | anonymous       | admin | client |
+| ------------------ | --------------- | ----- | ------ |
+| `/login`           | the form        | → `/admin` | → `/client` |
+| `/admin`           | → `/login`      | allowed | `403` |
+| `/admin/messages`  | → `/login`      | allowed | `403` |
+| `/client`          | → `/login`      | `403` | allowed |
+| `/logout`          | → `/login`      | allowed | allowed |
+
+An anonymous visitor is redirected rather than refused, and the redirect is the
+same for every protected route and carries no `?next=` — an attacker-suppliable
+redirect target is a separate liability and nothing needs one. A signed-in
+visitor asking for something that belongs to the other role gets `403`: there is
+nothing they can do at a login form about their own role. There is deliberately
+**no hierarchy** — an admin is refused `/client` exactly as a client is refused
+`/admin`.
+
+**Every POST to a non-public route must carry this session's CSRF token**, and
+that rule is applied by the guard rather than by each handler, so a mutation
+added later is defended by being declared in the catalog. `/logout` exercises it
+today. (`/contact` is a *public* POST and keeps its own token check, because the
+order in which it interleaves that check with throttling and storage is part of
+that form's design.)
+
+**A failed sign-in says one thing.** An unknown address, a wrong password and a
+disabled account produce the same status and the same sentence — anything else
+turns the form into a way of asking whether an address has an account here. The
+password is never redisplayed in any state.
+
+**Session fixation** is handled where the privilege is created: `login()`
+regenerates the session identifier *before* any authenticated state is written,
+destroying the record the old identifier named. Logging out clears the data,
+destroys the session server-side and expires the cookie, so replaying the old
+cookie resumes nothing. `session_regenerate_id()`, `session_destroy()` and
+`setcookie()` appear in exactly one file, `Facet\Session\PhpSession`, and a
+structural test keeps it that way.
+
+The session cookie is `HttpOnly`, `SameSite=Lax`, `Path=/`, and `Secure` only
+when the request actually arrived over HTTPS — a forwarding header is
+client-supplied and is not believed until a trusted-proxy policy exists.
+
+---
+
 ## Scope
 
 This checkpoint delivers the foundation, the canonical content and routes, the
-**skin boundary**, and the **MariaDB persistence foundation** — a strict PDO
-connection, ordered migrations and a CLI admin bootstrap.
+**skin boundary**, the **MariaDB persistence foundation** — a strict PDO
+connection, ordered migrations and a CLI admin bootstrap — the defended
+**contact form**, and **authentication with central role guards**.
 
-Auth itself, contact handling, SEO, the final visual design, a second skin,
-random skin selection, deployment and CI are deliberately out of scope and land
-in later packages.
+The admin inbox and the client area's own pages, password reset, registration,
+remember-me, MFA, OAuth, SEO, the final visual design, a second skin, random
+skin selection, deployment and CI are deliberately out of scope and land in
+later packages. The routes for those areas exist and are guarded; their handlers
+answer `501` until they are built.

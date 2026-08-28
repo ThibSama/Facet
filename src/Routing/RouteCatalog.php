@@ -19,7 +19,7 @@ final class RouteCatalog
      * Bumped whenever the route contract changes in a way consumers must react
      * to (a route added, removed, renamed, or its visibility changed).
      */
-    public const VERSION = '1.0.0';
+    public const VERSION = '1.1.0';
 
     public const HOME = 'home';
     public const PROJECTS_INDEX = 'projects.index';
@@ -27,6 +27,7 @@ final class RouteCatalog
     public const ABOUT = 'about';
     public const CONTACT = 'contact';
     public const LOGIN = 'login';
+    public const LOGOUT = 'logout';
     public const ADMIN_DASHBOARD = 'admin.dashboard';
     public const ADMIN_MESSAGES = 'admin.messages';
     public const CLIENT_AREA = 'client';
@@ -157,6 +158,20 @@ final class RouteCatalog
                 'page.login'
             ),
             RouteDefinition::define(
+                self::LOGOUT,
+                '/logout',
+                // POST only, and that is a security property rather than a
+                // stylistic one. A GET /logout can be triggered by any image
+                // tag on any page on the internet, so it is a cross-site
+                // request that logs a person out — harmless-sounding, and still
+                // an action performed without intent. As a POST it goes through
+                // the same central CSRF check as every other private mutation.
+                [HttpMethod::Post],
+                Visibility::Authenticated,
+                DataSource::AuthSession,
+                'page.logout'
+            ),
+            RouteDefinition::define(
                 self::ADMIN_DASHBOARD,
                 '/admin',
                 [HttpMethod::Get],
@@ -176,7 +191,7 @@ final class RouteCatalog
                 self::CLIENT_AREA,
                 '/client',
                 [HttpMethod::Get],
-                Visibility::Authenticated,
+                Visibility::Client,
                 DataSource::AuthSession,
                 'page.client'
             ),

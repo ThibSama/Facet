@@ -346,11 +346,8 @@ final class ThemeShellTest extends TestCase
         }
     }
 
-    /**
-     * Criterion 11: the shell declares structural tokens only, and the skin
-     * carries no colour of its own yet.
-     */
-    public function testOnlyStructuralTokensAreDeclared(): void
+    /** Criterion 11: shared structure stays neutral; the selected skin owns identity. */
+    public function testVisualTokensAreNamespacedAndOwnedByTheSkin(): void
     {
         preg_match_all('/(--[a-z0-9-]+)\s*:/i', self::css(), $matches);
 
@@ -374,13 +371,21 @@ final class ThemeShellTest extends TestCase
             'Shell components must reference tokens, never literal colours'
         );
 
-        // The skin has no identity yet — it aliases the shared tokens, which
-        // is what keeps it theme-correct before Phase 4 gives it real values.
+        // Phase 4 gives the skin its own light/dark primitives. They stay
+        // namespaced and components consume semantic variables rather than
+        // repeating colour literals throughout individual declarations.
         $skinCss = file_get_contents(
             self::root() . '/resources/skins/evolving-interface/skin.css'
         );
         self::assertIsString($skinCss);
-        self::assertSame(0, preg_match_all('/#[0-9a-f]{3,8}\b/i', $skinCss));
+        preg_match_all('/(--[a-z0-9-]+)\s*:/i', $skinCss, $skinMatches);
+        self::assertNotEmpty($skinMatches[1]);
+        foreach (array_unique($skinMatches[1]) as $token) {
+            self::assertStringStartsWith('--facet-', $token, 'Skin tokens must be namespaced');
+        }
+        self::assertGreaterThan(0, preg_match_all('/#[0-9a-f]{6}\b/i', $skinCss));
+        self::assertStringContainsString('--facet-light-canvas:', $skinCss);
+        self::assertStringContainsString('--facet-dark-canvas:', $skinCss);
         self::assertStringContainsString('var(--facet-', $skinCss);
     }
 

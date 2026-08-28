@@ -1,37 +1,731 @@
-/*
- * evolving-interface — skin surface.
- *
- * This file exists to prove the isolated-skin build boundary, not to carry the
- * visual design: it declares the tokens the skin owns and nothing more. The
- * shared base stylesheet (resources/css/app.css) is loaded alongside it and is
- * where Tailwind is imported — a skin never re-imports the framework.
- *
- * The skin tokens now alias the shared *structural* tokens instead of naming
- * literal colours. That keeps this file theme-correct for free — it follows
- * light, dark and an explicit `[data-theme]` choice without restating any of
- * them — and leaves the names in place for Phase 4, when this skin gets an
- * identity of its own and these aliases become real values.
- */
-
-[data-skin='evolving-interface'] {
+/* Evolving-interface primitives and semantic design tokens. */
+html[data-skin='evolving-interface'] {
   --facet-skin-id: 'evolving-interface';
+  --facet-font-sans: 'Facet Sans', 'Helvetica Neue', Arial, sans-serif;
+  --facet-font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', monospace;
+  --facet-text-xs: 0.75rem;
+  --facet-text-sm: 0.875rem;
+  --facet-text-base: 1rem;
+  --facet-text-lg: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
+  --facet-text-xl: clamp(1.25rem, 1.12rem + 0.5vw, 1.5rem);
+  --facet-text-2xl: clamp(1.5rem, 1.25rem + 0.9vw, 2rem);
+  --facet-text-3xl: clamp(2rem, 1.55rem + 1.8vw, 3rem);
+  --facet-text-display: clamp(2.75rem, 1.85rem + 4vw, 5.5rem);
+  --facet-leading-tight: 1.06;
+  --facet-leading-heading: 1.15;
+  --facet-leading-body: 1.65;
+  --facet-tracking-tight: -0.035em;
+  --facet-tracking-caps: 0.13em;
+  --facet-space-1: 0.25rem;
+  --facet-space-2: 0.5rem;
+  --facet-space-3: 0.75rem;
+  --facet-space-4: 1rem;
+  --facet-space-5: 1.5rem;
+  --facet-space-6: 2rem;
+  --facet-space-7: 3rem;
+  --facet-space-8: 4.5rem;
+  --facet-space-9: 7rem;
+  --facet-radius-sm: 0.45rem;
+  --facet-radius-md: 0.75rem;
+  --facet-radius-lg: 1.15rem;
+  --facet-radius-pill: 999px;
+  --facet-border-width: 1px;
+  --facet-shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06), 0 8px 22px rgb(43 52 89 / 0.06);
+  --facet-shadow-md: 0 18px 50px rgb(29 37 73 / 0.12);
+  --facet-glow: 0 0 0 transparent;
+  --facet-duration-fast: 120ms;
+  --facet-duration-base: 200ms;
+  --facet-duration-slow: 360ms;
+  --facet-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --facet-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Light is layered cool paper, not an inverted dark palette. */
+  --facet-light-canvas: #f2f5fb;
+  --facet-light-surface: #fbfcff;
+  --facet-light-raised: #ffffff;
+  --facet-light-elevated: #eef2fb;
+  --facet-light-ink: #111827;
+  --facet-light-muted: #445168;
+  --facet-light-subtle: #5e6980;
+  --facet-light-border: #d5dced;
+  --facet-light-border-strong: #8793aa;
+  --facet-light-accent: #4c36c7;
+  --facet-light-accent-hover: #3922ad;
+  --facet-light-accent-soft: #e9e5ff;
+  --facet-light-accent-ink: #ffffff;
+  --facet-light-focus: #175cd3;
+  --facet-light-danger: #b42318;
+  --facet-light-danger-soft: #fee9e7;
+  --facet-light-disabled: #566176;
+  --facet-light-disabled-surface: #e7eaf1;
+
+  /* Dark is black/blue/violet with deliberately restrained glow. */
+  --facet-dark-canvas: #040611;
+  --facet-dark-surface: #080b18;
+  --facet-dark-raised: #10162a;
+  --facet-dark-elevated: #171e37;
+  --facet-dark-ink: #f4f5ff;
+  --facet-dark-muted: #c4c9dc;
+  --facet-dark-subtle: #99a4bf;
+  --facet-dark-border: #293250;
+  --facet-dark-border-strong: #596683;
+  --facet-dark-accent: #b2a7ff;
+  --facet-dark-accent-hover: #d0c9ff;
+  --facet-dark-accent-soft: #27204f;
+  --facet-dark-accent-ink: #0a0d1b;
+  --facet-dark-focus: #82c8ff;
+  --facet-dark-danger: #ff938c;
+  --facet-dark-danger-soft: #421f28;
+  --facet-dark-disabled: #929bb2;
+  --facet-dark-disabled-surface: #20263a;
+
+  color-scheme: light;
+  --facet-canvas: var(--facet-light-canvas);
+  --facet-surface: var(--facet-light-surface);
+  --facet-surface-raised: var(--facet-light-raised);
+  --facet-surface-elevated: var(--facet-light-elevated);
+  --facet-ink: var(--facet-light-ink);
+  --facet-ink-muted: var(--facet-light-muted);
+  --facet-ink-subtle: var(--facet-light-subtle);
+  --facet-border: var(--facet-light-border);
+  --facet-border-strong: var(--facet-light-border-strong);
+  --facet-accent: var(--facet-light-accent);
+  --facet-accent-hover: var(--facet-light-accent-hover);
+  --facet-accent-soft: var(--facet-light-accent-soft);
+  --facet-accent-ink: var(--facet-light-accent-ink);
+  --facet-focus: var(--facet-light-focus);
+  --facet-danger: var(--facet-light-danger);
+  --facet-danger-soft: var(--facet-light-danger-soft);
+  --facet-disabled: var(--facet-light-disabled);
+  --facet-disabled-surface: var(--facet-light-disabled-surface);
   --facet-skin-surface: var(--facet-surface);
   --facet-skin-ink: var(--facet-ink);
+  --facet-shell-max: 76rem;
+  --facet-shell-gutter: clamp(1rem, 3.5vw, 3rem);
 }
 
-/*
- * The skin's media slot.
- *
- * Only the surface belongs here — the box's aspect ratio is written inline by
- * the slot partial, so a card reserves its space even before this stylesheet
- * arrives. The fill is a neutral raised surface rather than an illustration of
- * an illustration: an entry with no image yet should read as quiet space, not
- * as a missing asset.
- */
-[data-skin='evolving-interface'] .facet-media {
+@media (prefers-color-scheme: dark) {
+  html[data-skin='evolving-interface']:not([data-theme='light']) {
+    color-scheme: dark;
+    --facet-canvas: var(--facet-dark-canvas);
+    --facet-surface: var(--facet-dark-surface);
+    --facet-surface-raised: var(--facet-dark-raised);
+    --facet-surface-elevated: var(--facet-dark-elevated);
+    --facet-ink: var(--facet-dark-ink);
+    --facet-ink-muted: var(--facet-dark-muted);
+    --facet-ink-subtle: var(--facet-dark-subtle);
+    --facet-border: var(--facet-dark-border);
+    --facet-border-strong: var(--facet-dark-border-strong);
+    --facet-accent: var(--facet-dark-accent);
+    --facet-accent-hover: var(--facet-dark-accent-hover);
+    --facet-accent-soft: var(--facet-dark-accent-soft);
+    --facet-accent-ink: var(--facet-dark-accent-ink);
+    --facet-focus: var(--facet-dark-focus);
+    --facet-danger: var(--facet-dark-danger);
+    --facet-danger-soft: var(--facet-dark-danger-soft);
+    --facet-disabled: var(--facet-dark-disabled);
+    --facet-disabled-surface: var(--facet-dark-disabled-surface);
+    --facet-shadow-sm: 0 1px 0 rgb(255 255 255 / 0.035), 0 16px 42px rgb(0 0 0 / 0.24);
+    --facet-shadow-md: 0 24px 72px rgb(0 0 0 / 0.42);
+    --facet-glow: 0 0 46px rgb(112 92 255 / 0.1);
+  }
+}
+
+html[data-skin='evolving-interface'][data-theme='dark'] {
+  color-scheme: dark;
+  --facet-canvas: var(--facet-dark-canvas);
+  --facet-surface: var(--facet-dark-surface);
+  --facet-surface-raised: var(--facet-dark-raised);
+  --facet-surface-elevated: var(--facet-dark-elevated);
+  --facet-ink: var(--facet-dark-ink);
+  --facet-ink-muted: var(--facet-dark-muted);
+  --facet-ink-subtle: var(--facet-dark-subtle);
+  --facet-border: var(--facet-dark-border);
+  --facet-border-strong: var(--facet-dark-border-strong);
+  --facet-accent: var(--facet-dark-accent);
+  --facet-accent-hover: var(--facet-dark-accent-hover);
+  --facet-accent-soft: var(--facet-dark-accent-soft);
+  --facet-accent-ink: var(--facet-dark-accent-ink);
+  --facet-focus: var(--facet-dark-focus);
+  --facet-danger: var(--facet-dark-danger);
+  --facet-danger-soft: var(--facet-dark-danger-soft);
+  --facet-disabled: var(--facet-dark-disabled);
+  --facet-disabled-surface: var(--facet-dark-disabled-surface);
+  --facet-shadow-sm: 0 1px 0 rgb(255 255 255 / 0.035), 0 16px 42px rgb(0 0 0 / 0.24);
+  --facet-shadow-md: 0 24px 72px rgb(0 0 0 / 0.42);
+  --facet-glow: 0 0 46px rgb(112 92 255 / 0.1);
+}
+
+html[data-skin='evolving-interface'][data-theme='light'] { color-scheme: light; }
+
+html[data-skin='evolving-interface'] body {
+  font-family: var(--facet-font-sans);
+  font-size: var(--facet-text-base);
+  line-height: var(--facet-leading-body);
+  background:
+    radial-gradient(circle at 82% -12%, color-mix(in srgb, var(--facet-accent) 9%, transparent), transparent 34rem),
+    linear-gradient(180deg, var(--facet-surface) 0, var(--facet-canvas) 32rem);
+  background-attachment: fixed;
+}
+
+html[data-skin='evolving-interface'] :where(h1, h2, h3) {
+  color: var(--facet-ink);
+  line-height: var(--facet-leading-heading);
+  text-wrap: balance;
+}
+
+html[data-skin='evolving-interface'] .facet-main h1 {
+  max-width: 18ch;
+  font-size: var(--facet-text-3xl);
+  font-weight: 700;
+  letter-spacing: var(--facet-tracking-tight);
+}
+
+html[data-skin='evolving-interface'] .facet-main h2 {
+  font-size: var(--facet-text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+html[data-skin='evolving-interface'] .facet-main h3 { letter-spacing: -0.012em; }
+html[data-skin='evolving-interface'] .font-mono { font-family: var(--facet-font-mono); }
+
+html[data-skin='evolving-interface'] :where(a, button, input, textarea, select) {
+  transition:
+    color var(--facet-duration-fast) var(--facet-ease-standard),
+    background-color var(--facet-duration-fast) var(--facet-ease-standard),
+    border-color var(--facet-duration-fast) var(--facet-ease-standard),
+    box-shadow var(--facet-duration-base) var(--facet-ease-standard),
+    transform var(--facet-duration-fast) var(--facet-ease-standard);
+}
+
+html[data-skin='evolving-interface'] :where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--facet-focus);
+  outline-offset: 3px;
+  border-radius: var(--facet-radius-sm);
+}
+
+html[data-skin='evolving-interface'] .facet-header {
+  position: relative;
+  z-index: 10;
+  border-color: color-mix(in srgb, var(--facet-border) 82%, transparent);
+  background: color-mix(in srgb, var(--facet-surface) 88%, transparent);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--facet-ink) 4%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+html[data-skin='evolving-interface'] .facet-header__inner {
+  min-height: 4.75rem;
+  gap: var(--facet-space-2) var(--facet-space-4);
+  padding-block: var(--facet-space-3);
+}
+
+html[data-skin='evolving-interface'] .facet-brand {
+  font-size: var(--facet-text-lg);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+html[data-skin='evolving-interface'] .facet-brand::before {
+  content: '';
+  display: inline-block;
+  width: 0.62rem;
+  height: 0.62rem;
+  margin-inline-end: var(--facet-space-2);
+  border-radius: 0.18rem 50% 50%;
+  background: var(--facet-accent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--facet-accent) 35%, transparent);
+  transform: rotate(45deg);
+}
+
+html[data-skin='evolving-interface'] .facet-nav__list { gap: var(--facet-space-1); }
+
+html[data-skin='evolving-interface'] .facet-nav__link {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: var(--facet-radius-pill);
+  color: var(--facet-ink-muted);
+  font-size: var(--facet-text-sm);
+  font-weight: 700;
+}
+
+html[data-skin='evolving-interface'] .facet-nav__link:hover {
+  color: var(--facet-ink);
+  background: var(--facet-surface-elevated);
+  text-decoration: none;
+}
+
+html[data-skin='evolving-interface'] .facet-nav__link[aria-current='page'] {
+  color: var(--facet-accent);
+  background: var(--facet-accent-soft);
+  text-decoration: none;
+}
+
+html[data-skin='evolving-interface'] :where(.facet-nav-toggle, .facet-theme-toggle) {
+  border-color: var(--facet-border);
+  border-radius: var(--facet-radius-pill);
+  background: var(--facet-surface-raised);
+  box-shadow: var(--facet-shadow-sm);
+  font-weight: 700;
+}
+
+html[data-skin='evolving-interface'] :where(.facet-nav-toggle, .facet-theme-toggle):hover {
+  border-color: var(--facet-border-strong);
+  background: var(--facet-surface-elevated);
+}
+
+html[data-skin='evolving-interface'] .facet-main {
+  padding-block: clamp(var(--facet-space-7), 7vw, var(--facet-space-9));
+}
+
+html[data-skin='evolving-interface'] .facet-footer {
+  border-color: var(--facet-border);
+  background: color-mix(in srgb, var(--facet-surface-raised) 88%, var(--facet-canvas));
+  color: var(--facet-ink-subtle);
+}
+
+html[data-skin='evolving-interface'] .facet-footer__inner { padding-block: var(--facet-space-6); }
+
+html[data-skin='evolving-interface'] .facet-link {
+  color: var(--facet-accent);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.2em;
+}
+
+html[data-skin='evolving-interface'] .facet-link:hover { color: var(--facet-accent-hover); }
+
+html[data-skin='evolving-interface'] .facet-button {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border: var(--facet-border-width) solid transparent;
+  border-radius: var(--facet-radius-pill);
+  background: var(--facet-accent);
+  color: var(--facet-accent-ink);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--facet-accent) 20%, transparent);
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+html[data-skin='evolving-interface'] .facet-button:hover {
+  background: var(--facet-accent-hover);
+  color: var(--facet-accent-ink);
+  transform: translateY(-1px);
+}
+
+html[data-skin='evolving-interface'] .facet-button:active { transform: translateY(0); }
+
+html[data-skin='evolving-interface'] :where(button, input, textarea, select):disabled,
+html[data-skin='evolving-interface'] :where(button, input, textarea, select)[aria-disabled='true'] {
+  border-color: var(--facet-border);
+  background: var(--facet-disabled-surface);
+  color: var(--facet-disabled);
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 1;
+  transform: none;
+}
+
+html[data-skin='evolving-interface'] .facet-field,
+html[data-skin='evolving-interface'] select {
+  min-height: 2.875rem;
+  border: var(--facet-border-width) solid var(--facet-border-strong);
+  border-radius: var(--facet-radius-md);
+  background: var(--facet-surface-raised);
+  color: var(--facet-ink);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--facet-ink) 3%, transparent);
+  font: inherit;
+}
+
+html[data-skin='evolving-interface'] :where(.facet-field, select):hover { border-color: var(--facet-accent); }
+
+html[data-skin='evolving-interface'] :where(.facet-field, select):focus-visible {
+  border-color: var(--facet-focus);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--facet-focus) 18%, transparent);
+}
+
+html[data-skin='evolving-interface'] .facet-field[aria-invalid='true'] {
+  border-color: var(--facet-danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--facet-danger) 14%, transparent);
+}
+
+html[data-skin='evolving-interface'] .facet-field-error {
+  color: var(--facet-danger);
+  font-weight: 700;
+}
+
+html[data-skin='evolving-interface'] .facet-notice {
+  border: var(--facet-border-width) solid var(--facet-border);
+  border-left-width: 4px;
+  border-radius: var(--facet-radius-md);
+  background: var(--facet-surface-raised);
+  box-shadow: var(--facet-shadow-sm);
+}
+
+html[data-skin='evolving-interface'] .facet-notice--success {
+  border-left-color: var(--facet-accent);
+  background: color-mix(in srgb, var(--facet-accent-soft) 55%, var(--facet-surface-raised));
+}
+
+html[data-skin='evolving-interface'] .facet-notice--error {
+  border-left-color: var(--facet-danger);
+  background: color-mix(in srgb, var(--facet-danger-soft) 58%, var(--facet-surface-raised));
+}
+
+html[data-skin='evolving-interface'] .facet-skip-link {
+  border-radius: 0 0 var(--facet-radius-md) var(--facet-radius-md);
+  background: var(--facet-surface-raised);
+  box-shadow: var(--facet-shadow-md);
+  font-weight: 700;
+}
+
+html[data-skin='evolving-interface'] .facet-media {
   display: block;
   width: 100%;
-  border: 1px solid var(--facet-border);
-  border-radius: 0.375rem;
-  background-color: var(--facet-surface-raised);
+  border: var(--facet-border-width) solid var(--facet-border);
+  border-radius: var(--facet-radius-lg);
+  background:
+    linear-gradient(135deg, transparent 0 46%, color-mix(in srgb, var(--facet-accent) 11%, transparent) 46% 54%, transparent 54%),
+    radial-gradient(circle at 25% 25%, color-mix(in srgb, var(--facet-accent) 17%, transparent), transparent 42%),
+    var(--facet-surface-elevated);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--facet-ink) 5%, transparent);
+}
+
+/* Route compositions consume the same surfaces without changing content. */
+html[data-skin='evolving-interface'] .facet-main > section:not(.facet-hero) {
+  margin-top: var(--facet-space-8);
+  padding-top: var(--facet-space-7);
+  border-top: var(--facet-border-width) solid var(--facet-border);
+}
+
+html[data-skin='evolving-interface'] .facet-main .uppercase {
+  color: var(--facet-ink-subtle);
+  font-size: var(--facet-text-xs);
+  font-weight: 700;
+  letter-spacing: var(--facet-tracking-caps);
+}
+
+html[data-skin='evolving-interface'] .facet-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(17rem, 0.7fr);
+  align-items: center;
+  gap: clamp(var(--facet-space-7), 7vw, var(--facet-space-9));
+  min-height: min(38rem, calc(100vh - 10rem));
+}
+
+html[data-skin='evolving-interface'] .facet-hero h1 {
+  font-size: var(--facet-text-display);
+  line-height: var(--facet-leading-tight);
+}
+
+html[data-skin='evolving-interface'] .facet-hero__body > .text-lg {
+  max-width: 38rem;
+  font-size: var(--facet-text-xl);
+}
+
+html[data-skin='evolving-interface'] .facet-hero__visual {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  width: min(100%, 22rem);
+  justify-self: end;
+  overflow: hidden;
+  border: var(--facet-border-width) solid var(--facet-border);
+  border-radius: min(4vw, 2.5rem);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--facet-accent-soft) 75%, transparent), transparent 48%),
+    radial-gradient(circle at 72% 30%, color-mix(in srgb, var(--facet-accent) 22%, transparent), transparent 38%),
+    var(--facet-surface-raised);
+  box-shadow: var(--facet-shadow-md), var(--facet-glow);
+}
+
+html[data-skin='evolving-interface'] .facet-hero__visual::before,
+html[data-skin='evolving-interface'] .facet-hero__visual::after {
+  content: '';
+  position: absolute;
+  border: var(--facet-border-width) solid color-mix(in srgb, var(--facet-accent) 55%, var(--facet-border));
+  background: color-mix(in srgb, var(--facet-surface-elevated) 78%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--facet-ink) 7%, transparent);
+}
+
+html[data-skin='evolving-interface'] .facet-hero__visual::before {
+  inset: 13% 11% 34% 23%;
+  border-radius: 50% 1.5rem 50% 1.5rem;
+  transform: rotate(-9deg);
+}
+
+html[data-skin='evolving-interface'] .facet-hero__visual::after {
+  inset: 48% 28% 10% 9%;
+  border-radius: 1.5rem 50% 1.5rem 50%;
+  transform: rotate(12deg);
+}
+
+html[data-skin='evolving-interface'] .facet-card-grid {
+  align-items: stretch;
+  gap: var(--facet-space-5);
+}
+
+html[data-skin='evolving-interface'] .facet-card {
+  min-width: 0;
+  border-color: var(--facet-border);
+  border-radius: var(--facet-radius-lg);
+  background: color-mix(in srgb, var(--facet-surface-raised) 88%, transparent);
+  box-shadow: var(--facet-shadow-sm);
+}
+
+html[data-skin='evolving-interface'] .facet-card:hover,
+html[data-skin='evolving-interface'] .facet-card:focus-within {
+  border-color: color-mix(in srgb, var(--facet-accent) 55%, var(--facet-border));
+  box-shadow: var(--facet-shadow-md), var(--facet-glow);
+}
+
+html[data-skin='evolving-interface'] .facet-project-card {
+  padding: var(--facet-space-4);
+}
+
+html[data-skin='evolving-interface'] .facet-project-card .facet-media {
+  border-radius: calc(var(--facet-radius-lg) - var(--facet-space-1));
+}
+
+html[data-skin='evolving-interface'] .facet-chip-list {
+  gap: var(--facet-space-2);
+}
+
+html[data-skin='evolving-interface'] .facet-chip {
+  border-color: var(--facet-border);
+  border-radius: var(--facet-radius-pill);
+  background: color-mix(in srgb, var(--facet-surface-elevated) 78%, transparent);
+  color: var(--facet-ink-muted);
+  font-weight: 700;
+}
+
+html[data-skin='evolving-interface'] .facet-timeline {
+  position: relative;
+  border-color: color-mix(in srgb, var(--facet-accent) 38%, var(--facet-border));
+}
+
+html[data-skin='evolving-interface'] .facet-timeline > li {
+  position: relative;
+}
+
+html[data-skin='evolving-interface'] .facet-timeline > li::before {
+  content: '';
+  position: absolute;
+  top: 0.48rem;
+  left: calc(-1.5rem - 0.3125rem);
+  width: 0.625rem;
+  height: 0.625rem;
+  border: 2px solid var(--facet-accent);
+  border-radius: 50%;
+  background: var(--facet-canvas);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--facet-accent) 10%, transparent);
+}
+
+html[data-skin='evolving-interface'] body[data-route^='/projects/'] .facet-main > .facet-media {
+  max-width: 58rem;
+  margin-top: var(--facet-space-6);
+}
+
+html[data-skin='evolving-interface'] body[data-route^='/projects/'] .facet-main > section {
+  max-width: 52rem;
+}
+
+html[data-skin='evolving-interface'] .facet-portrait {
+  padding: var(--facet-space-2);
+  border: var(--facet-border-width) solid var(--facet-border);
+  border-radius: calc(var(--facet-radius-lg) + var(--facet-space-2));
+  background: var(--facet-surface-raised);
+  box-shadow: var(--facet-shadow-md);
+}
+
+html[data-skin='evolving-interface'] .facet-form-panel {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 36rem;
+  padding: clamp(var(--facet-space-4), 4vw, var(--facet-space-6));
+  border: var(--facet-border-width) solid var(--facet-border);
+  border-radius: var(--facet-radius-lg);
+  background: color-mix(in srgb, var(--facet-surface-raised) 92%, transparent);
+  box-shadow: var(--facet-shadow-md);
+}
+
+html[data-skin='evolving-interface'] .facet-form-panel label,
+html[data-skin='evolving-interface'] .facet-inline-form label {
+  color: var(--facet-ink);
+  font-weight: 700;
+}
+
+html[data-skin='evolving-interface'] textarea.facet-field { min-height: 11rem; }
+
+html[data-skin='evolving-interface'] select {
+  display: block;
+  min-width: 8rem;
+  margin-top: var(--facet-space-1);
+  padding: var(--facet-space-2) var(--facet-space-3);
+}
+
+html[data-skin='evolving-interface'] .facet-private-session {
+  border-color: var(--facet-border);
+}
+
+html[data-skin='evolving-interface'] body[data-route='/admin'],
+html[data-skin='evolving-interface'] body[data-route='/admin/messages'],
+html[data-skin='evolving-interface'] body[data-route='/client'] {
+  background: linear-gradient(180deg, var(--facet-surface), var(--facet-canvas));
+}
+
+html[data-skin='evolving-interface'] body[data-route='/admin'] .facet-main,
+html[data-skin='evolving-interface'] body[data-route='/client'] .facet-main {
+  max-width: 58rem;
+}
+
+html[data-skin='evolving-interface'] .facet-inbox {
+  display: table;
+  width: 100%;
+  overflow: visible;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: var(--facet-border-width) solid var(--facet-border);
+  border-radius: var(--facet-radius-lg);
+  background: var(--facet-surface-raised);
+  box-shadow: var(--facet-shadow-sm);
+}
+
+html[data-skin='evolving-interface'] .facet-inbox th,
+html[data-skin='evolving-interface'] .facet-inbox td {
+  min-width: 0;
+  padding: var(--facet-space-3) var(--facet-space-4);
+  border-bottom: var(--facet-border-width) solid var(--facet-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+html[data-skin='evolving-interface'] .facet-inbox th {
+  background: var(--facet-surface-elevated);
+  color: var(--facet-ink-subtle);
+  font-size: var(--facet-text-xs);
+  letter-spacing: var(--facet-tracking-caps);
+  text-transform: uppercase;
+}
+
+html[data-skin='evolving-interface'] .facet-inbox tbody tr:last-child td { border-bottom: 0; }
+html[data-skin='evolving-interface'] .facet-inbox tbody tr:hover { background: var(--facet-accent-soft); }
+
+html[data-skin='evolving-interface'] .facet-message {
+  max-width: 58rem;
+  padding: clamp(var(--facet-space-4), 4vw, var(--facet-space-6));
+  border: var(--facet-border-width) solid var(--facet-border);
+  border-radius: var(--facet-radius-lg);
+  background: var(--facet-surface-raised);
+  box-shadow: var(--facet-shadow-md);
+}
+
+html[data-skin='evolving-interface'] .facet-message .whitespace-pre-wrap {
+  max-width: 70ch;
+  overflow-wrap: anywhere;
+}
+
+html[data-skin='evolving-interface'] .facet-inline-form { flex-wrap: wrap; }
+
+@media (max-width: 56rem) {
+  html[data-skin='evolving-interface'] .facet-hero {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  html[data-skin='evolving-interface'] .facet-hero__visual {
+    aspect-ratio: 16 / 7;
+    width: 100%;
+    max-width: 42rem;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 40rem) {
+  html[data-skin='evolving-interface'] .facet-main > section:not(.facet-hero) {
+    margin-top: var(--facet-space-7);
+    padding-top: var(--facet-space-6);
+  }
+
+  html[data-skin='evolving-interface'] .facet-hero__visual { display: none; }
+  html[data-skin='evolving-interface'] .facet-card-grid { grid-template-columns: minmax(0, 1fr); }
+  html[data-skin='evolving-interface'] .facet-form-panel { padding: var(--facet-space-4); }
+
+  html[data-skin='evolving-interface'] .facet-inbox,
+  html[data-skin='evolving-interface'] .facet-inbox tbody,
+  html[data-skin='evolving-interface'] .facet-inbox tr,
+  html[data-skin='evolving-interface'] .facet-inbox td {
+    display: block;
+    width: 100%;
+  }
+
+  html[data-skin='evolving-interface'] .facet-inbox {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  html[data-skin='evolving-interface'] .facet-inbox thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  html[data-skin='evolving-interface'] .facet-inbox tr {
+    margin-bottom: var(--facet-space-4);
+    padding: var(--facet-space-2) var(--facet-space-3);
+    border: var(--facet-border-width) solid var(--facet-border);
+    border-radius: var(--facet-radius-md);
+    background: var(--facet-surface-raised);
+    box-shadow: var(--facet-shadow-sm);
+  }
+
+  html[data-skin='evolving-interface'] .facet-inbox td {
+    display: grid;
+    grid-template-columns: minmax(4.5rem, 0.35fr) minmax(0, 1fr);
+    gap: var(--facet-space-3);
+    padding: var(--facet-space-2) 0;
+    border-bottom: var(--facet-border-width) solid var(--facet-border);
+    overflow-wrap: anywhere;
+  }
+
+  html[data-skin='evolving-interface'] .facet-inbox td::before {
+    content: attr(data-label);
+    color: var(--facet-ink-subtle);
+    font-size: var(--facet-text-xs);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  html[data-skin='evolving-interface'] .facet-inbox td:last-child { border-bottom: 0; }
+  html[data-skin='evolving-interface'] .facet-inline-form { align-items: stretch; }
+  html[data-skin='evolving-interface'] .facet-inline-form label { flex-basis: 100%; }
+}
+
+@media (max-width: 47.99em) {
+  html[data-skin='evolving-interface'] .facet-header__inner { min-height: 4.25rem; }
+
+  html[data-skin='evolving-interface'] [data-facet-header][data-facet-nav-enhanced][data-facet-nav-open='true'] .facet-nav {
+    padding: var(--facet-space-2) 0 var(--facet-space-3);
+  }
+
+  html[data-skin='evolving-interface'] [data-facet-header][data-facet-nav-enhanced] .facet-nav__item + .facet-nav__item {
+    border-color: var(--facet-border);
+  }
+
+  html[data-skin='evolving-interface'] [data-facet-header][data-facet-nav-enhanced] .facet-nav__link {
+    border-radius: var(--facet-radius-sm);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-skin='evolving-interface'] body { background-attachment: scroll; }
 }

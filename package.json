@@ -11,9 +11,10 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "design:check": "node tools/check-design-system.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "quality": "npm run lint && npm run build"
+    "quality": "npm run lint && npm run design:check && npm run build"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

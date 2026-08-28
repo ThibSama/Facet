@@ -75,9 +75,9 @@ ob_start();
         <p class="mt-6 facet-ink-muted"><?= $view->text($profile->summary()) ?></p>
 
         <?php if ($focusAreas !== []): ?>
-        <ul class="mt-6 flex flex-wrap gap-2 text-sm" aria-label="Focus areas">
+        <ul class="mt-6 flex flex-wrap gap-2 text-sm facet-chip-list" aria-label="Focus areas">
             <?php foreach ($focusAreas as $focusArea): ?>
-            <li class="rounded border facet-border px-2 py-1"><?= $view->text($focusArea) ?></li>
+            <li class="rounded border facet-border px-2 py-1 facet-chip"><?= $view->text($focusArea) ?></li>
             <?php endforeach; ?>
         </ul>
         <?php endif; ?>
@@ -103,7 +103,7 @@ ob_start();
 <section class="mt-16" aria-labelledby="featured-projects">
     <h2 id="featured-projects" class="text-2xl font-semibold tracking-tight">Selected work</h2>
 
-    <ul class="mt-6 grid gap-6 sm:grid-cols-2">
+    <ul class="mt-6 grid gap-6 sm:grid-cols-2 facet-card-grid">
         <?php foreach ($projects as $project): ?>
         <?php
         $projectPeriod = $project->period();
@@ -114,7 +114,7 @@ ob_start();
         // neither, the line is not rendered at all rather than left empty.
         $hasMeta = $projectStatus->isSubstantiated() || $projectPeriod !== null;
         ?>
-        <li class="rounded border facet-border p-5">
+        <li class="rounded border facet-border p-5 facet-card">
             <article>
                 <h3 class="text-lg font-medium">
                     <a class="facet-link hover:underline" href="<?= $view->url('/projects/' . $project->slug()) ?>">
@@ -169,9 +169,9 @@ ob_start();
             <h3 id="skills-<?= $view->attr($category->value) ?>" class="text-sm font-medium uppercase tracking-wide facet-ink-subtle">
                 <?= $view->text($category->value) ?>
             </h3>
-            <ul class="mt-2 flex flex-wrap gap-2 text-sm">
+            <ul class="mt-2 flex flex-wrap gap-2 text-sm facet-chip-list">
                 <?php foreach ($categorySkills as $skill): ?>
-                <li class="rounded border facet-border px-2 py-1"><?= $view->text($skill->name()) ?></li>
+                <li class="rounded border facet-border px-2 py-1 facet-chip"><?= $view->text($skill->name()) ?></li>
                 <?php endforeach; ?>
             </ul>
         </section>
@@ -193,7 +193,7 @@ ob_start();
      * nothing else.
      */
     ?>
-    <ol class="mt-6 space-y-8 border-l facet-border pl-6">
+    <ol class="mt-6 space-y-8 border-l facet-border pl-6 facet-timeline">
         <?php foreach ($experiences as $experience): ?>
         <?php
         $experiencePeriod = $experience->period();

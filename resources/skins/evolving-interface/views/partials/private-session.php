@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 ?>
-<div class="mt-8 flex flex-wrap items-center gap-4 border-t pt-6">
+<div class="mt-8 flex flex-wrap items-center gap-4 border-t pt-6 facet-private-session">
     <p class="facet-ink-muted">Signed in as <?= $view->text($accountEmail) ?>.</p>
     <form method="post" action="<?= $view->url('/logout') ?>">
         <input type="hidden" name="<?= $view->attr($csrfField) ?>" value="<?= $view->attr($csrfToken) ?>">

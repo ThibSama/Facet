@@ -74,7 +74,7 @@ ob_start();
 
 <p class="mt-2 text-sm facet-ink-subtle"><?= $view->text($profile->location()) ?></p>
 
-<div class="mt-8 max-w-xs">
+<div class="mt-8 max-w-xs facet-portrait">
     <?php require dirname(__DIR__) . '/partials/media.php'; ?>
 </div>
 

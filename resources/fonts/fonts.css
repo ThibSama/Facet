@@ -1,8 +1,16 @@
-/*
- * Local font entrypoint.
- *
- * No brand typeface is selected or licensed yet, so this file intentionally
- * declares no @font-face. Add only project-authorized WOFF2 files beside it;
- * Vite will fingerprint url('./name.woff2') references imported from here.
- * Every future @font-face must declare an explicit font-display policy.
- */
+/* Lato provenance and checksums are recorded beside these local assets. */
+@font-face {
+  font-family: 'Facet Sans';
+  src: url('./facet-lato-regular.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Facet Sans';
+  src: url('./facet-lato-bold.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}

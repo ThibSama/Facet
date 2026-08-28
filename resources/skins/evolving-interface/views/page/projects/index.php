@@ -33,7 +33,7 @@ ob_start();
 <h1 class="text-3xl font-semibold tracking-tight">Projects</h1>
 
 <?php if ($projects !== []): ?>
-<ul class="mt-8 grid gap-6 sm:grid-cols-2">
+<ul class="mt-8 grid gap-6 sm:grid-cols-2 facet-card-grid facet-project-grid">
     <?php foreach ($projects as $project): ?>
     <?php
     $slug = $project->slug()->value();
@@ -57,7 +57,7 @@ ob_start();
     $media = $project->media();
     $mediaRatio = '16 / 9';
     ?>
-    <li class="flex flex-col rounded border facet-border p-5">
+    <li class="flex flex-col rounded border facet-border p-5 facet-card facet-project-card">
         <article aria-labelledby="<?= $view->attr($headingId) ?>" class="flex h-full flex-col">
             <?php
             /*

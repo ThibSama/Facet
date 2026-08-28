@@ -75,7 +75,7 @@ ob_start();
 <?php endif; ?>
 
 <form
-    class="mt-8 max-w-md space-y-6"
+    class="mt-8 max-w-md space-y-6 facet-form-panel"
     method="post"
     action="<?= $view->url('/login') ?>"
     aria-describedby="login-status"

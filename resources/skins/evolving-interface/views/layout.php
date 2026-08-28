@@ -60,7 +60,7 @@ $navigationId = 'facet-primary-nav';
     <link rel="stylesheet" href="<?= $view->url($style) ?>">
     <?php endforeach; ?>
 </head>
-<body class="facet-body">
+<body class="facet-body" data-route="<?= $view->attr($currentPath) ?>">
     <a class="facet-skip-link" href="#main">Skip to content</a>
     <?php require __DIR__ . '/partials/header.php'; ?>
     <main id="main" class="facet-main facet-shell" tabindex="-1">

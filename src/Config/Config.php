@@ -24,6 +24,9 @@ final class Config
      */
     private const SENSITIVE_KEYS = [
         'APP_KEY',
+        'DB_DSN',
+        'DB_USERNAME',
+        'DB_PASSWORD',
     ];
 
     /** @var array<string, string> */

@@ -112,6 +112,7 @@ fails the request explicitly instead of rendering an assetless page.
 ```
 config/           Resolved application settings
 content/          Canonical content (versioned JSON, no database)
+database/         Ordered SQL migrations (plain .sql, no framework)
 public/           Document root — index.php and built assets (public/build/)
 resources/css/    Shared Tailwind entry stylesheet
 resources/fonts/  Licensed local WOFF2 pipeline (no font selected yet)
@@ -119,7 +120,7 @@ resources/images/ Manifest-addressable local responsive image sources
 resources/js/     Shared TypeScript entrypoint (progressive enhancement only)
 resources/skins/  One directory per skin — views + isolated entrypoints
 src/              PSR-4 application code (Facet\)
-tests/            PHPUnit — Unit/, Content/ and Smoke/
+tests/            PHPUnit — Unit/, Content/, Smoke/ and Database/
 tools/            Dependency-free maintenance scripts
 ```
 
@@ -261,8 +262,10 @@ APP_ENV=local APP_KEY=dev php -d variables_order=EGPCS public/index.php \
 `.env` only for values the environment does not already define.
 
 - Non-sensitive keys may carry a safe default (`APP_NAME`, `APP_URL`, …).
-- Sensitive keys (`APP_KEY`) have **no fallback** — `Config::get()` on them
-  ignores any caller-supplied default and throws when the value is missing.
+- Sensitive keys (`APP_KEY`, `DB_DSN`, `DB_USERNAME`, `DB_PASSWORD`) have **no
+  fallback** — `Config::get()` on them ignores any caller-supplied default and
+  throws when the value is missing. A database boundary that can invent its own
+  credentials is one that silently connects somewhere unintended.
 - `APP_DEBUG` is forced off whenever `APP_ENV=production`.
 
 Every recognised key is documented in `.env.example`, which contains
@@ -288,9 +291,135 @@ repository deliberately contains no deployment-specific server configuration.
 
 ---
 
+## Database
+
+The public site does **not** use the database. Canonical content lives in
+`content/` as versioned JSON, and every public page renders with `DB_DSN`,
+`DB_USERNAME` and `DB_PASSWORD` unset — `DatabaseIndependenceTest` holds that
+line. The database exists for what comes next: accounts and contact messages.
+
+### The connection
+
+`Facet\Database\Database` is the only place that talks to MariaDB. It connects
+lazily, so nothing costs a connection until a query actually runs, and it fixes
+the options the rest of the codebase is entitled to assume:
+
+| Option | Value | Why |
+| --- | --- | --- |
+| `ATTR_ERRMODE` | `ERRMODE_EXCEPTION` | a failed statement can never look like an empty result |
+| `ATTR_DEFAULT_FETCH_MODE` | `FETCH_ASSOC` | rows are read by name, never by position |
+| `ATTR_EMULATE_PREPARES` | `false` | parameters are bound by the server, not interpolated by the driver |
+| `ATTR_STRINGIFY_FETCHES` | `false` | an `INT` column arrives as an `int` |
+
+The DSN must name the `mysql` driver and use `utf8mb4`; an absent charset is
+added and a conflicting one is rejected. Pinning the driver is what stops a
+misconfigured environment from quietly pointing the suite at SQLite, where the
+schema would not be exercised at all.
+
+Credentials never reach an error message. MariaDB's own text for a rejected
+login names the account (`Access denied for user 'facet'@'…'`), so
+`DatabaseException` scrubs every driver string on the way in and deliberately
+does **not** chain the raw `PDOException` — chaining would put the unscrubbed
+message straight back into `(string) $exception`. `sqlState()` and
+`driverDetail()` carry the causality forward in a form that is safe to log.
+
+### Migrations
+
+Migrations are plain `.sql` files in `database/migrations/`, named
+`<version>_<name>.sql` and applied in version order. A `schema_migrations`
+ledger records each one with a SHA-256 checksum.
+
+```bash
+php tools/migrate.php --status   # report; changes nothing
+php tools/migrate.php            # apply everything pending
+```
+
+Re-running applies nothing. Editing a migration that has already been applied,
+or deleting its file, **fails closed** rather than guessing.
+
+> **On atomicity, honestly:** a migration is *not* atomic. MariaDB commits DDL
+> implicitly, so wrapping `CREATE TABLE` in a transaction buys nothing. A
+> migration that fails partway leaves the earlier statements applied and is not
+> recorded in the ledger, so the next run fails loudly on the existing object
+> instead of silently skipping the rest. Recovery is a human decision and the
+> tool does not pretend to make it.
+
+### The first administrator
+
+```bash
+php tools/create-admin.php --email=you@example.com
+```
+
+The password is prompted for with echo disabled — never passed as an argument,
+because arguments are visible to every process through `ps` and land in shell
+history. For an unattended provision, export `FACET_ADMIN_PASSWORD` instead.
+It is hashed with `password_hash()` before it reaches the database.
+
+There is **no `/install` route and no default account.** This repository
+contains no password and no hash, so a fresh deployment has no credential at all
+until someone with shell access runs this command.
+
+### Applying the schema without shell access
+
+Shared hosting — a Hetzner webhosting plan with phpMyAdmin and no SSH, for
+example — can apply the same schema by hand. The migrations are deliberately
+plain SQL so that this works:
+
+1. In phpMyAdmin, select the target database (never `mysql` or
+   `information_schema`) and open the **SQL** tab.
+2. Paste the contents of each file in `database/migrations/` **in version
+   order**, running one file at a time and confirming each succeeds before
+   starting the next.
+3. Record what you applied, so the ledger matches reality:
+
+   ```sql
+   CREATE TABLE IF NOT EXISTS schema_migrations (
+       version    VARCHAR(50)  NOT NULL,
+       name       VARCHAR(191) NOT NULL,
+       checksum   CHAR(64)     NOT NULL,
+       applied_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       PRIMARY KEY (version)
+   ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+   ```
+
+   Insert one row per applied file. The checksum is the SHA-256 of the file with
+   CRLF normalised to LF and trailing whitespace stripped — `php -r` prints the
+   value the migrator expects:
+
+   ```bash
+   php -r 'require "vendor/autoload.php";
+     echo Facet\Database\Migration\Migration::fromFile($argv[1])->checksum(), PHP_EOL;' \
+     database/migrations/0001_create_users_table.sql
+   ```
+
+   Get a checksum wrong and the next `php tools/migrate.php` will refuse to run
+   rather than double-apply — which is the intended behaviour, not a bug.
+4. Create the administrator. With no shell, insert the row directly, generating
+   the hash on a machine you *do* control:
+
+   ```bash
+   php -r 'echo password_hash("the-password-you-chose", PASSWORD_DEFAULT), PHP_EOL;'
+   ```
+
+   ```sql
+   INSERT INTO users (email, password_hash, role, status)
+   VALUES ('you@example.com', '<paste the hash>', 'admin', 'active');
+   ```
+
+   The address must be lowercase and trimmed — a `CHECK` constraint rejects
+   anything else, which is what keeps the unique index meaningful.
+
+Never paste a plaintext password into phpMyAdmin, and never commit a generated
+hash: both end up in server-side query logs and in this repository respectively.
+
+---
+
 ## Scope
 
-This checkpoint delivers the foundation, the canonical content and routes, and
-the **skin boundary**. Database, auth, contact handling, SEO, the final visual
-design, a second skin, random skin selection, deployment and CI are deliberately
-out of scope and land in later packages.
+This checkpoint delivers the foundation, the canonical content and routes, the
+**skin boundary**, and the **MariaDB persistence foundation** — a strict PDO
+connection, ordered migrations and a CLI admin bootstrap.
+
+Auth itself, contact handling, SEO, the final visual design, a second skin,
+random skin selection, deployment and CI are deliberately out of scope and land
+in later packages.

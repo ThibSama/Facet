@@ -7,10 +7,13 @@
 /public/hot
 .vite/
 
-# Environment (never track real secrets)
+# Environment (never track real secrets).
+# .env, .env.local and .env.testing are real machine-local files; only the
+# placeholder-only templates are tracked.
 .env
 .env.*
 !.env.example
+!.env.testing.example
 
 # Tooling caches / reports
 /.phpunit.cache/

@@ -8,11 +8,18 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['tools/*.mjs'],
+    // Node scripts: build tooling and the development supervisor. They run on
+    // Node directly, never in a browser, so the Node globals they use are
+    // declared here rather than pulled in as another dependency.
+    files: ['tools/*.mjs', 'scripts/*.mjs'],
     languageOptions: {
       globals: {
         console: 'readonly',
         process: 'readonly',
+        fetch: 'readonly',
+        AbortSignal: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
       },
     },
   },

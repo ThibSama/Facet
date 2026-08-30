@@ -45,8 +45,53 @@ npm run build
 composer quality
 ```
 
+Then start working:
+
+```bash
+npm run dev
+```
+
 `.env` is git-ignored and must never be committed. `APP_KEY` has **no fallback**:
 the application throws `MissingConfigurationException` if it is unset or empty.
+The public site renders with `DB_DSN` / `DB_USERNAME` / `DB_PASSWORD` left empty
+— a development database is not needed to work on it.
+
+### Environment files
+
+| File                   | Tracked | Owner                | Purpose                                                        |
+| ---------------------- | ------- | -------------------- | -------------------------------------------------------------- |
+| `.env.example`         | yes     | application          | Placeholder-only template. Copy to `.env`.                       |
+| `.env`                 | no      | application          | Your real local development values.                              |
+| `.env.local`           | no      | application          | **Optional** machine-local overrides. Create only if you need one. |
+| `.env.testing.example` | yes     | test suite           | Placeholder-only template. Copy to `.env.testing`.               |
+| `.env.testing`         | no      | test suite           | Real `FACET_TEST_DB_*` credentials for the disposable schema.    |
+
+Application configuration resolves in a fixed order, highest precedence first:
+
+1. **the process environment** — what a deployment exports, and what
+   `npm run dev` injects into the PHP child
+2. **`.env.local`** — optional, git-ignored
+3. **`.env`**
+
+Two rules keep that order from becoming a way to surprise yourself:
+
+- `.env.local` is **not read when `APP_ENV=production`**, and it may not define
+  `APP_ENV` itself. Whether this is production is answered by the process
+  environment and `.env` alone, so an untracked local file can never decide it —
+  and production never begins depending on a file that does not ship.
+- `.env.testing` is **test-only**. `Config` drops every `FACET_TEST_*` name on
+  the way in, so the application cannot resolve one even though the PHPUnit
+  bootstrap has loaded that file into `$_ENV` in the same process. The suite
+  makes the same promise in reverse: it reads `FACET_TEST_DB_*` and never falls
+  back to the application's `DB_*`, so a run either reached the disposable
+  `facet_test` schema or reported itself blocked.
+
+A missing required value raises `MissingConfigurationException`, naming the key
+and the three places it could come from. It never prints a configured value.
+
+The convention is enforced by `tests/Unit/Config/` — precedence, the production
+exclusion, the ignore rules, template safety and dev/test isolation are all
+asserted against the real repository.
 
 ---
 
@@ -58,16 +103,13 @@ the application throws `MissingConfigurationException` if it is unset or empty.
 | `composer test`     | PHPUnit                                              |
 | `composer analyse`  | PHPStan (level 8)                                    |
 | `composer lint:php` | Dependency-free PHP syntax check                     |
-| `npm run dev`       | Vite dev server with HMR                             |
+| `npm run dev`       | **Start everything** — PHP + Vite, with HMR           |
 | `npm run build`     | `tsc --noEmit` + production Vite build               |
 | `npm run lint`      | ESLint over TypeScript/JavaScript                    |
 | `npm run typecheck` | TypeScript, no emit                                  |
 
-For HMR, set `VITE_DEV_SERVER_ORIGIN=http://localhost:5173`, run `npm run dev`,
-and run PHP separately. PHP only constructs the development URLs; it does not
-probe or require the Vite server during application boot. With no origin set,
-local development uses an existing manifest when present and otherwise keeps
-server-rendered HTML available without enhancement.
+`npm run dev:vite` runs Vite alone, for the rare case where PHP is already
+being served some other way.
 
 ### `composer quality`
 
@@ -94,10 +136,51 @@ exit code and no path that reports green while a required tool is absent.
 ## Running locally
 
 ```bash
-php -S localhost:8000 -t public
+npm run dev
 ```
 
-Then open <http://localhost:8000>.
+Then open <http://127.0.0.1:8000>.
+
+That is the whole of daily startup. Facet is a PHP application with Vite as its
+asset pipeline, so a working development environment is two processes;
+`scripts/dev.mjs` runs them as one:
+
+| | |
+| --- | --- |
+| **App** | `http://127.0.0.1:8000` — PHP's built-in server, through `public/index.php` so `/projects`, `/contact` and `/login` route exactly as they do in production |
+| **Vite** | `http://127.0.0.1:5173` — modules, stylesheets and the HMR socket |
+
+Hot module replacement is on by default. The supervisor exports
+`VITE_DEV_SERVER_ORIGIN` into the PHP process itself, so PHP emits Vite's client
+and source entrypoints without anyone editing `.env` — the process environment
+is the highest-precedence source, so nothing on disk has to change.
+
+It is deliberately strict, because a development environment that degrades
+quietly costs more than one that stops:
+
+- **The ports are fixed.** A busy 8000 or 5173 is reported and the run stops. It
+  never moves to another port, because a URL that moves is one you cannot put in
+  a bookmark, a test or a bug report.
+- **Missing prerequisites fail before anything starts.** No `vendor/`, no Vite,
+  no `php` on PATH, no `.env`, no `APP_KEY` — each is named with the command
+  that fixes it. A production `APP_ENV` is refused outright.
+- **The two processes live and die together.** Ctrl+C stops both and leaves no
+  listener behind; if either exits on its own, the other is stopped and the
+  command exits non-zero.
+- **Both output streams are kept and prefixed** `[php]` / `[vite]`, so a PHP
+  warning or a Vite error is attributable at a glance.
+
+No database is required to work on the public site, the contact form's GET page
+or the login page: leave `DB_DSN`, `DB_USERNAME` and `DB_PASSWORD` empty. The
+disposable `facet_test` schema belongs to the test suite (`.env.testing`) and is
+never a development database.
+
+Serving PHP by hand still works — `php -S 127.0.0.1:8000 -t public public/index.php` —
+but then HMR is opt-in, via `VITE_DEV_SERVER_ORIGIN` in `.env` and a separate
+`npm run dev:vite`. PHP only constructs the development URLs; it never probes or
+requires the Vite server during boot. With no origin set, local development uses
+an existing manifest when present and otherwise keeps server-rendered HTML
+available without enhancement.
 
 In production, point the web server's document root at `public/` and serve
 `public/index.php`. Deploy `vendor/` (via `composer install --no-dev`) and the
@@ -264,8 +347,9 @@ APP_ENV=local APP_KEY=dev php -d variables_order=EGPCS public/index.php \
 
 ## Configuration
 
-`Facet\Config\Config` reads real environment variables first and falls back to
-`.env` only for values the environment does not already define.
+`Facet\Config\Config` reads the real process environment first, then the
+optional `.env.local`, then `.env` — see [Environment files](#environment-files)
+for the full convention and the rules that keep it deterministic.
 
 - Non-sensitive keys may carry a safe default (`APP_NAME`, `APP_LOCALE`, …).
   `APP_URL` is the deliberate exception: canonical SEO output has no safe
@@ -276,8 +360,10 @@ APP_ENV=local APP_KEY=dev php -d variables_order=EGPCS public/index.php \
   credentials is one that silently connects somewhere unintended.
 - `APP_DEBUG` is forced off whenever `APP_ENV=production`.
 
-Every recognised key is documented in `.env.example`, which contains
-placeholders only.
+Every recognised application key is documented in `.env.example`, which contains
+placeholders only; the test suite's own keys are documented in
+`.env.testing.example`. The two files share no key, and a test credential is
+never readable from application configuration.
 
 ### Local media and caching
 

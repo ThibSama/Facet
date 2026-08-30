@@ -48,6 +48,25 @@ final class DotEnvTest extends TestCase
         self::assertSame([], DotEnv::load('/nonexistent/facet/.env'));
     }
 
+    public function testReadDoesNotTouchTheEnvironment(): void
+    {
+        file_put_contents($this->path, "FACET_TEST_PLAIN=from-file\n");
+
+        self::assertSame(['FACET_TEST_PLAIN' => 'from-file'], DotEnv::read($this->path));
+        self::assertArrayNotHasKey('FACET_TEST_PLAIN', $_ENV);
+    }
+
+    public function testIgnoredNamesAreNeverApplied(): void
+    {
+        file_put_contents($this->path, "FACET_TEST_PLAIN=from-file\nFACET_TEST_QUOTED=kept\n");
+
+        $loaded = DotEnv::load($this->path, ['FACET_TEST_PLAIN']);
+
+        self::assertArrayNotHasKey('FACET_TEST_PLAIN', $loaded);
+        self::assertArrayNotHasKey('FACET_TEST_PLAIN', $_ENV);
+        self::assertSame('kept', $_ENV['FACET_TEST_QUOTED']);
+    }
+
     public function testDoesNotOverrideExistingEnvironment(): void
     {
         $_ENV['FACET_TEST_PLAIN'] = 'from-environment';

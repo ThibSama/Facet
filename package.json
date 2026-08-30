@@ -8,7 +8,8 @@
     "node": ">=20.19"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "dev:vite": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "font:check": "python3 tools/check-font-subset.py",

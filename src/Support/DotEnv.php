@@ -11,13 +11,23 @@ namespace Facet\Support;
  * configuration: real deployments are expected to export real environment
  * variables, and the `.env` file is a local-development convenience only.
  * Values already present in the environment always win over the file.
+ *
+ * That last rule is also what makes layered files deterministic without any
+ * merge step: loading the higher-precedence file first leaves its values in
+ * `$_ENV`, and the lower-precedence file then skips every name it already
+ * defined. See {@see \Facet\Config\Config::fromEnvironment()}.
  */
 final class DotEnv
 {
     /**
-     * @return array<string, string> the variables sourced from the file
+     * Parse a file without touching the environment.
+     *
+     * Used to answer a question *about* a file — which environment `.env`
+     * names, say — at a point where applying its values would be premature.
+     *
+     * @return array<string, string>
      */
-    public static function load(string $path): array
+    public static function read(string $path): array
     {
         if (!is_readable($path)) {
             return [];
@@ -29,16 +39,12 @@ final class DotEnv
             return [];
         }
 
-        $loaded = [];
+        $values = [];
 
         foreach (preg_split('/\R/', $contents) ?: [] as $line) {
             $line = trim($line);
 
-            if ($line === '' || str_starts_with($line, '#')) {
-                continue;
-            }
-
-            if (!str_contains($line, '=')) {
+            if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) {
                 continue;
             }
 
@@ -49,9 +55,29 @@ final class DotEnv
                 continue;
             }
 
-            $value = self::unquote(trim($value));
+            $values[$name] = self::unquote(trim($value));
+        }
 
-            // Never let the file override a real environment variable.
+        return $values;
+    }
+
+    /**
+     * @param list<string> $ignoredNames names this file may not define,
+     *                                   whatever it happens to contain
+     *
+     * @return array<string, string> the variables sourced from the file
+     */
+    public static function load(string $path, array $ignoredNames = []): array
+    {
+        $loaded = [];
+
+        foreach (self::read($path) as $name => $value) {
+            if (in_array($name, $ignoredNames, true)) {
+                continue;
+            }
+
+            // Never let the file override a real environment variable, nor a
+            // value a higher-precedence file has already placed in $_ENV.
             if (getenv($name) !== false || array_key_exists($name, $_ENV)) {
                 continue;
             }

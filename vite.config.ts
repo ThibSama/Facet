@@ -35,9 +35,38 @@ const SKIN_ENTRYPOINTS = {
  */
 const LOCAL_ASSET_ENTRYPOINTS = {};
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [tailwindcss()],
-  base: '/build/',
+  /**
+   * `/build/` is where the production output lands under the PHP document
+   * root, so built asset URLs must carry it. The dev server has no such
+   * directory: it serves the project's *sources*, and PHP addresses them by
+   * their repository-relative path (`/resources/js/app.ts`). Applying the build
+   * base there too would move every dev URL under `/build/` while PHP kept
+   * emitting the unprefixed one, and every module request — the HMR client
+   * included — would 404 against a server that was demonstrably listening.
+   *
+   * Build output is unaffected: only `serve` uses the root base.
+   */
+  base: command === 'build' ? '/build/' : '/',
+  /**
+   * Backend integration: the document is served by PHP on :8000 while the
+   * modules and stylesheets come from Vite on :5173. Without an explicit
+   * origin, Vite rewrites the `url()` in `resources/fonts/fonts.css` to a
+   * root-relative path, which the browser then resolves against the *document*
+   * — asking PHP for a font that only exists behind Vite. Declaring the origin
+   * makes every generated asset URL absolute, so the two servers stop
+   * disagreeing about who owns `/resources/`.
+   *
+   * `strictPort` is the same promise the supervisor makes: the development
+   * ports are fixed, and a busy one is a failure rather than a quiet move.
+   */
+  server: {
+    host: '127.0.0.1',
+    port: 5173,
+    strictPort: true,
+    origin: 'http://127.0.0.1:5173',
+  },
   // public/ is the PHP document root, not a Vite static dir.
   publicDir: false,
   build: {
@@ -52,4 +81,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

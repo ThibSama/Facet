@@ -12,15 +12,21 @@
  * wording are this skin's own vocabulary.
  *
  * @var \Facet\Html\ViewContext $view
+ * @var \Facet\I18n\Translator  $t
  */
 
 declare(strict_types=1);
 
 use Facet\Content\Period;
 
-$periodLabel = static function (Period $period): string {
+require __DIR__ . '/locale-context.php';
+
+/** @var \Facet\I18n\Translator $periodTranslator */
+$periodTranslator = $t;
+
+$periodLabel = static function (Period $period) use ($periodTranslator): string {
     if ($period->isOngoing()) {
-        return $period->start() . ' — present';
+        return $period->start() . ' — ' . $periodTranslator->text('content.period.present');
     }
 
     $end = (string) $period->end();

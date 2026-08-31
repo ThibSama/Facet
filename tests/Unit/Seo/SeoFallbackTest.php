@@ -31,11 +31,15 @@ final class SeoFallbackTest extends TestCase
             'APP_LOCALE' => 'fr',
         ]));
 
-        $response = $app->handle(Request::create('GET', '/'));
+        $response = $app->handle(Request::create('GET', '/fr'));
 
         self::assertSame(200, $response->status());
         self::assertStringContainsString('name="description"', $response->body());
         self::assertStringNotContainsString('rel="canonical"', $response->body());
+        // No origin, no absolute URL to advertise — so no alternates either.
+        // A page that claims a counterpart it cannot address is worse than one
+        // that claims none.
+        self::assertStringNotContainsString('rel="alternate"', $response->body());
         self::assertStringNotContainsString('property="og:url"', $response->body());
         self::assertStringNotContainsString('localhost', $response->body());
     }

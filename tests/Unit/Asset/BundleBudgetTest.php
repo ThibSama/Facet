@@ -34,7 +34,7 @@ final class BundleBudgetTest extends TestCase
     /** Critical JS is everything a document loads before it is interactive. */
     private const CRITICAL_JS_GZIP_BUDGET = 51_200;
 
-    /** The deferred visual chunk: reached only through a dynamic import. */
+    /** A deferred chunk: reached only through a dynamic import, if at all. */
     private const VISUAL_CHUNK_GZIP_BUDGET = 256_000;
 
     /** Shared with tools/check-font-subset.py, which gates the sources. */
@@ -52,6 +52,22 @@ final class BundleBudgetTest extends TestCase
     ];
 
     private const VISUAL_ENTRY = 'resources/skins/evolving-interface/hero.ts';
+
+    /**
+     * PORT-134's game. It is reached only when a visitor presses Play, so it
+     * is charged to the deferred budget rather than the critical one — and it
+     * is listed here so that "deferred" stays a property the build proves
+     * rather than a claim the module makes about itself.
+     */
+    private const RUN_ENTRY = 'resources/skins/evolving-interface/satoshi-run/run.ts';
+
+    /**
+     * Every chunk the skin entry is allowed to reach dynamically, in the order
+     * Rollup records them. The list is exact on purpose: a new deferred chunk
+     * is a new thing a visitor can be made to download, and it should not be
+     * possible to add one without this file being edited.
+     */
+    private const DEFERRED_ENTRIES = [self::VISUAL_ENTRY, self::RUN_ENTRY];
 
     private static function root(): string
     {
@@ -128,26 +144,37 @@ final class BundleBudgetTest extends TestCase
         );
     }
 
-    public function testTheSignatureVisualIsDeferredAndUnderTheVisualBudget(): void
+    public function testEveryDeferredChunkStaysDeferredAndUnderTheVisualBudget(): void
     {
         $skin = self::manifest()['resources/skins/evolving-interface/skin.ts'] ?? null;
         self::assertIsArray($skin);
 
-        // The budget is only meaningful while the chunk stays deferred: a hero
+        // The budget is only meaningful while these chunks stay deferred: one
         // promoted to a static import would be critical JS wearing this name.
-        self::assertSame([self::VISUAL_ENTRY], $skin['dynamicImports'] ?? null);
+        self::assertSame(self::DEFERRED_ENTRIES, $skin['dynamicImports'] ?? null);
+        self::assertSame([], $skin['imports'] ?? []);
 
-        $hero = self::manifest()[self::VISUAL_ENTRY] ?? null;
-        self::assertIsArray($hero);
-        self::assertTrue($hero['isDynamicEntry'] ?? false);
+        foreach (self::DEFERRED_ENTRIES as $source) {
+            $entry = self::manifest()[$source] ?? null;
+            self::assertIsArray($entry, $source . ' must be a manifest entry');
+            self::assertTrue($entry['isDynamicEntry'] ?? false, $source . ' must be a dynamic entry');
+            self::assertArrayNotHasKey('isEntry', $entry, $source . ' is not an entrypoint PHP can emit');
 
-        $size = self::gzipped(self::fileFor(self::VISUAL_ENTRY));
+            // A deferred chunk's stylesheet is deferred with it, so it is part
+            // of what pressing the button actually costs and is measured here.
+            $size = self::gzipped(self::fileFor($source));
 
-        self::assertLessThanOrEqual(
-            self::VISUAL_CHUNK_GZIP_BUDGET,
-            $size,
-            sprintf('the visual chunk is %d B gzip, over the %d B budget', $size, self::VISUAL_CHUNK_GZIP_BUDGET)
-        );
+            foreach ($entry['css'] ?? [] as $stylesheet) {
+                self::assertIsString($stylesheet);
+                $size += self::gzipped($stylesheet);
+            }
+
+            self::assertLessThanOrEqual(
+                self::VISUAL_CHUNK_GZIP_BUDGET,
+                $size,
+                sprintf('%s is %d B gzip, over the %d B budget', $source, $size, self::VISUAL_CHUNK_GZIP_BUDGET)
+            );
+        }
     }
 
     /**

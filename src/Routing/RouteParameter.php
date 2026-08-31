@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Facet\Routing;
 
+use Facet\I18n\Locale;
 use Facet\Support\Slug;
 
 /**
@@ -37,6 +38,21 @@ final class RouteParameter
     public static function slug(string $name = 'slug'): self
     {
         return new self($name, Slug::PATTERN, Slug::isValid(...));
+    }
+
+    /**
+     * The public language segment of every canonical public URL.
+     *
+     * It reuses {@see Locale} as its contract for the same reason the slug
+     * parameter reuses {@see Slug}: the set of segments the router accepts and
+     * the set of locales the site can render must be one set. That is what
+     * makes `/de/projects` a 404 rather than a French page served under a
+     * German-looking URL — the segment is refused at routing, so nothing
+     * downstream ever has to decide what `de` might have meant.
+     */
+    public static function locale(string $name = 'locale'): self
+    {
+        return new self($name, '[a-z]{2}', static fn (string $value): bool => Locale::fromSegment($value) !== null);
     }
 
     public function name(): string

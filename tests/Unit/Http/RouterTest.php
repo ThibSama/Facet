@@ -36,7 +36,13 @@ final class RouterTest extends TestCase
     public function testEveryDeclaredRouteIsReachable(): void
     {
         foreach (RouteCatalog::all() as $name => $route) {
-            $path = $route->toPath($route->isDynamic() ? ['slug' => 'kushim'] : []);
+            $values = [];
+
+            foreach ($route->parameters() as $parameter) {
+                $values[$parameter->name()] = $parameter->name() === 'locale' ? 'fr' : 'kushim';
+            }
+
+            $path = $route->toPath($values);
 
             foreach ($route->methods() as $method) {
                 $match = self::router()->match(Request::create($method->value, $path));
@@ -49,7 +55,20 @@ final class RouterTest extends TestCase
 
     public function testAnUnknownPathIsNotFound(): void
     {
-        foreach (['/nope', '/projects/kushim/extra', '/admin/messages/1', '/.env'] as $path) {
+        // `/de` and `/de/projects` belong here rather than anywhere else: an
+        // unsupported language must be a miss, never a French page served under
+        // a German-looking URL.
+        foreach ([
+            '/nope',
+            '/fr/projects/kushim/extra',
+            '/admin/messages/1',
+            '/.env',
+            '/de',
+            '/de/projects',
+            '/de/projects/kushim',
+            '/FR',
+            '/fr-FR',
+        ] as $path) {
             $match = self::router()->match(Request::create('GET', $path));
 
             self::assertSame(MatchOutcome::NotFound, $match->outcome(), $path . ' must be a 404');
@@ -59,7 +78,7 @@ final class RouterTest extends TestCase
 
     public function testAKnownPathWithAnUnsupportedMethodIsMethodNotAllowed(): void
     {
-        $match = self::router()->match(Request::create('POST', '/'));
+        $match = self::router()->match(Request::create('POST', '/fr'));
 
         self::assertTrue($match->isMethodNotAllowed());
         self::assertSame(RouteCatalog::HOME, $match->route()->name());
@@ -71,7 +90,7 @@ final class RouterTest extends TestCase
     {
         // DELETE is not modelled at all; the path still exists, so the honest
         // answer is 405 with an Allow header, not 404.
-        $match = self::router()->match(Request::create('DELETE', '/contact'));
+        $match = self::router()->match(Request::create('DELETE', '/fr/contact'));
 
         self::assertTrue($match->isMethodNotAllowed());
         self::assertSame('GET, POST', $match->allowHeader());
@@ -84,8 +103,8 @@ final class RouterTest extends TestCase
 
     public function testPostIsDistinguishedFromGetOnTheSamePath(): void
     {
-        $get = self::router()->match(Request::create('GET', '/contact'));
-        $post = self::router()->match(Request::create('POST', '/contact'));
+        $get = self::router()->match(Request::create('GET', '/fr/contact'));
+        $post = self::router()->match(Request::create('POST', '/fr/contact'));
 
         self::assertTrue($get->isMatch());
         self::assertTrue($post->isMatch());
@@ -94,17 +113,18 @@ final class RouterTest extends TestCase
 
     public function testDynamicParametersAreExtracted(): void
     {
-        $match = self::router()->match(Request::create('GET', '/projects/eszter-gyori'));
+        $match = self::router()->match(Request::create('GET', '/en/projects/eszter-gyori'));
 
         self::assertTrue($match->isMatch());
         self::assertSame(RouteCatalog::PROJECTS_SHOW, $match->route()->name());
-        self::assertSame(['slug' => 'eszter-gyori'], $match->parameters());
+        self::assertSame(['locale' => 'en', 'slug' => 'eszter-gyori'], $match->parameters());
         self::assertSame('eszter-gyori', $match->parameter('slug'));
+        self::assertSame('en', $match->parameter('locale'));
     }
 
     public function testAPercentEncodedSlugIsDecodedBeforeValidation(): void
     {
-        $match = self::router()->match(Request::create('GET', '/projects/math%2Dl%2Dhome'));
+        $match = self::router()->match(Request::create('GET', '/fr/projects/math%2Dl%2Dhome'));
 
         self::assertTrue($match->isMatch());
         self::assertSame('math-l-home', $match->parameter('slug'));
@@ -116,17 +136,17 @@ final class RouterTest extends TestCase
     public static function malformedSlugs(): array
     {
         return [
-            ['/projects/Kushim'],
-            ['/projects/-kushim'],
-            ['/projects/kushim-'],
-            ['/projects/ku--shim'],
-            ['/projects/ku_shim'],
-            ['/projects/a'],
-            ['/projects/' . str_repeat('a', Slug::MAX_LENGTH + 1)],
-            ['/projects/%2E%2E%2F%2E%2E%2Fetc%2Fpasswd'],
-            ['/projects/kushim%20'],
-            ['/projects/a%2Fb'],
-            ['/projects/kushim%00'],
+            ['/fr/projects/Kushim'],
+            ['/fr/projects/-kushim'],
+            ['/fr/projects/kushim-'],
+            ['/fr/projects/ku--shim'],
+            ['/fr/projects/ku_shim'],
+            ['/fr/projects/a'],
+            ['/fr/projects/' . str_repeat('a', Slug::MAX_LENGTH + 1)],
+            ['/fr/projects/%2E%2E%2F%2E%2E%2Fetc%2Fpasswd'],
+            ['/fr/projects/kushim%20'],
+            ['/fr/projects/a%2Fb'],
+            ['/fr/projects/kushim%00'],
         ];
     }
 
@@ -146,8 +166,8 @@ final class RouterTest extends TestCase
 
     public function testStaticSegmentsWinOverDynamicOnesOnDifferentDepths(): void
     {
-        $index = self::router()->match(Request::create('GET', '/projects'));
-        $show = self::router()->match(Request::create('GET', '/projects/kushim'));
+        $index = self::router()->match(Request::create('GET', '/fr/projects'));
+        $show = self::router()->match(Request::create('GET', '/fr/projects/kushim'));
 
         self::assertSame(RouteCatalog::PROJECTS_INDEX, $index->route()->name());
         self::assertSame(RouteCatalog::PROJECTS_SHOW, $show->route()->name());

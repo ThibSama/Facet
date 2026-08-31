@@ -44,6 +44,45 @@ final class ContactValidator
     public const MESSAGE_MAX = 5000;
 
     /**
+     * The bound each field is judged against, by field name.
+     *
+     * Stated as data so the presentation layer can name the number in whatever
+     * language it is writing in — "at most 120 characters" is one sentence with
+     * a value in it, not two sentences to keep in step.
+     *
+     * @var array<string, int>
+     */
+    public const MAX_LENGTHS = [
+        'name' => self::NAME_MAX,
+        'email' => self::EMAIL_MAX,
+        'subject' => self::SUBJECT_MAX,
+        'message' => self::MESSAGE_MAX,
+    ];
+
+    /**
+     * Every reason this validator can refuse a field, exhaustively.
+     *
+     * The list is the contract between validation and presentation: each value
+     * is a translation key suffix, and {@see \Facet\I18n\Translations} declares
+     * `contact.error.<reason>` for every one of them in both languages. A
+     * reason added here without its sentence is caught by the completeness
+     * test rather than by a visitor.
+     *
+     * @var list<string>
+     */
+    public const REASONS = [
+        'name.missing',
+        'name.tooLong',
+        'email.missing',
+        'email.tooLong',
+        'email.malformed',
+        'subject.missing',
+        'subject.tooLong',
+        'message.missing',
+        'message.tooLong',
+    ];
+
+    /**
      * Validate a request body.
      *
      * @param array<string, string> $body
@@ -59,30 +98,36 @@ final class ContactValidator
 
         $errors = [];
 
+        // The verdict is a reason, never a sentence. Which field failed and
+        // why is a server decision; what a visitor is told about it is a
+        // presentation decision, and since PORT-137 it is one that depends on
+        // the language the page is being rendered in. Keeping prose out of here
+        // is what stops the contact form from needing a second, translated
+        // copy of its own validation.
         if ($values['name'] === '') {
-            $errors['name'] = 'Please give a name I can address a reply to.';
+            $errors['name'] = 'name.missing';
         } elseif (mb_strlen($values['name']) > self::NAME_MAX) {
-            $errors['name'] = sprintf('A name can be at most %d characters.', self::NAME_MAX);
+            $errors['name'] = 'name.tooLong';
         }
 
         if ($values['email'] === '') {
-            $errors['email'] = 'Please give an email address so a reply can reach you.';
+            $errors['email'] = 'email.missing';
         } elseif (mb_strlen($values['email']) > self::EMAIL_MAX) {
-            $errors['email'] = sprintf('An email address can be at most %d characters.', self::EMAIL_MAX);
+            $errors['email'] = 'email.tooLong';
         } elseif (!EmailAddress::isValid($values['email'])) {
-            $errors['email'] = 'That does not look like an email address.';
+            $errors['email'] = 'email.malformed';
         }
 
         if ($values['subject'] === '') {
-            $errors['subject'] = 'Please say in one line what this is about.';
+            $errors['subject'] = 'subject.missing';
         } elseif (mb_strlen($values['subject']) > self::SUBJECT_MAX) {
-            $errors['subject'] = sprintf('A subject can be at most %d characters.', self::SUBJECT_MAX);
+            $errors['subject'] = 'subject.tooLong';
         }
 
         if ($values['message'] === '') {
-            $errors['message'] = 'Please write a message.';
+            $errors['message'] = 'message.missing';
         } elseif (mb_strlen($values['message']) > self::MESSAGE_MAX) {
-            $errors['message'] = sprintf('A message can be at most %d characters.', self::MESSAGE_MAX);
+            $errors['message'] = 'message.tooLong';
         }
 
         if ($errors !== []) {

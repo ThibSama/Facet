@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Facet\Tests\Smoke;
 
+use Facet\I18n\LocalePreference;
 use Facet\Tests\Fixtures\ExplodingSkin;
 use PHPUnit\Framework\TestCase;
 
@@ -141,9 +142,24 @@ final class HttpServerSmokeTest extends TestCase
     /**
      * @return array{status: int, headers: list<string>, body: string}
      */
-    private static function request(string $method, string $path, ?string $host = null): array
-    {
+    /**
+     * @param array<string, string> $headers extra request headers
+     *
+     * @return array{status: int, headers: list<string>, body: string}
+     */
+    private static function request(
+        string $method,
+        string $path,
+        ?string $host = null,
+        array $headers = []
+    ): array {
         $host ??= self::host();
+
+        $extra = '';
+
+        foreach ($headers as $name => $value) {
+            $extra .= "\r\n" . $name . ': ' . $value;
+        }
 
         $context = stream_context_create([
             'http' => [
@@ -153,7 +169,7 @@ final class HttpServerSmokeTest extends TestCase
                 'timeout' => 10,
                 // An explicit empty body: the built-in server blocks waiting
                 // for one when a POST arrives without a length.
-                'header' => "Content-Length: 0\r\nContent-Type: application/x-www-form-urlencoded",
+                'header' => "Content-Length: 0\r\nContent-Type: application/x-www-form-urlencoded" . $extra,
                 'content' => '',
             ],
         ]);
@@ -186,7 +202,7 @@ final class HttpServerSmokeTest extends TestCase
 
     public function testGetHomeIsServedAsHtml(): void
     {
-        $response = self::request('GET', '/');
+        $response = self::request('GET', '/fr');
 
         self::assertSame(200, $response['status']);
         self::assertStringContainsString('<!doctype html>', $response['body']);
@@ -197,18 +213,66 @@ final class HttpServerSmokeTest extends TestCase
         );
     }
 
+    /**
+     * The language preference, over a real request, both ways.
+     *
+     * It is here rather than beside the other locale tests because the defect
+     * this guards against only exists between an HTTP request and `$_COOKIE`:
+     * PHP rewrites `.` to `_` in those keys, so a cookie named `facet.locale`
+     * would be written on every response and read on none — and every
+     * in-process test, which hands the application a clean array, would pass
+     * throughout. It cost a browser to find once; it costs this to keep found.
+     */
+    public function testTheLanguagePreferenceSurvivesARealRequest(): void
+    {
+        $set = self::request('GET', '/en', null, ['Accept-Language' => 'fr-FR,fr;q=0.9']);
+
+        self::assertSame(200, $set['status']);
+
+        $cookie = null;
+
+        foreach ($set['headers'] as $header) {
+            if (stripos($header, 'set-cookie: ' . LocalePreference::COOKIE . '=') === 0) {
+                $cookie = $header;
+            }
+        }
+
+        self::assertNotNull($cookie, 'An explicit locale URL must remember the language it served');
+        self::assertStringContainsString(LocalePreference::COOKIE . '=en;', (string) $cookie);
+        self::assertStringNotContainsString('.', LocalePreference::COOKIE);
+
+        // And the server reads back exactly what it wrote: the preference beats
+        // an Accept-Language that says the opposite.
+        $entry = self::request('GET', '/', null, [
+            'Cookie' => LocalePreference::COOKIE . '=en',
+            'Accept-Language' => 'fr-FR,fr;q=0.9',
+        ]);
+
+        self::assertSame(302, $entry['status']);
+        self::assertSame('/en', self::headerValue('Location', ...$entry['headers']));
+
+        // The other direction, so this cannot pass by always answering English.
+        $french = self::request('GET', '/', null, [
+            'Cookie' => LocalePreference::COOKIE . '=fr',
+            'Accept-Language' => 'en-US,en;q=0.9',
+        ]);
+
+        self::assertSame(302, $french['status']);
+        self::assertSame('/fr', self::headerValue('Location', ...$french['headers']));
+    }
+
     public function testAnUnknownPathIsA404(): void
     {
         $response = self::request('GET', '/definitely-not-a-page');
 
         self::assertSame(404, $response['status']);
         self::assertStringContainsString('<!doctype html>', $response['body']);
-        self::assertStringContainsString('Page not found', $response['body']);
+        self::assertStringContainsString('Page introuvable', $response['body']);
     }
 
     public function testAnUnsupportedMethodIsA405WithAllow(): void
     {
-        $response = self::request('POST', '/');
+        $response = self::request('POST', '/fr');
 
         self::assertSame(405, $response['status']);
         self::assertSame('GET', self::headerValue('Allow', ...$response['headers']));
@@ -216,7 +280,7 @@ final class HttpServerSmokeTest extends TestCase
 
     public function testAValidProjectSlugIsRouted(): void
     {
-        $response = self::request('GET', '/projects/kushim');
+        $response = self::request('GET', '/fr/projects/kushim');
 
         self::assertSame(200, $response['status']);
         self::assertStringContainsString('<!doctype html>', $response['body']);
@@ -224,17 +288,17 @@ final class HttpServerSmokeTest extends TestCase
 
     public function testAMalformedSlugIsRejected(): void
     {
-        foreach (['/projects/Kushim', '/projects/ku--shim', '/projects/a'] as $path) {
+        foreach (['/fr/projects/Kushim', '/fr/projects/ku--shim', '/fr/projects/a'] as $path) {
             self::assertSame(404, self::request('GET', $path)['status'], $path);
         }
     }
 
     public function testANonCanonicalPathRedirects(): void
     {
-        $response = self::request('GET', '/projects/');
+        $response = self::request('GET', '/fr/projects/');
 
         self::assertSame(301, $response['status']);
-        self::assertSame('/projects', self::headerValue('Location', ...$response['headers']));
+        self::assertSame('/fr/projects', self::headerValue('Location', ...$response['headers']));
     }
 
     /**
@@ -243,7 +307,7 @@ final class HttpServerSmokeTest extends TestCase
      */
     public function testNoServedPageLeaksPathsOrDiagnostics(): void
     {
-        foreach (['/', '/projects', '/projects/kushim', '/about', '/contact', '/nope'] as $path) {
+        foreach (['/fr', '/fr/projects', '/fr/projects/kushim', '/fr/about', '/fr/contact', '/nope'] as $path) {
             $body = self::request('GET', $path)['body'];
 
             self::assertStringNotContainsString(self::root(), $body, $path);
@@ -260,7 +324,7 @@ final class HttpServerSmokeTest extends TestCase
      */
     public function testEveryPublicPageIsUsableWithoutJavaScript(): void
     {
-        foreach (['/', '/projects', '/projects/kushim', '/about', '/contact'] as $path) {
+        foreach (['/fr', '/fr/projects', '/fr/projects/kushim', '/fr/about', '/fr/contact'] as $path) {
             $body = self::request('GET', $path)['body'];
 
             // Strip script elements entirely: what remains is what a client
@@ -277,9 +341,9 @@ final class HttpServerSmokeTest extends TestCase
 
         // The form posts to a real URL with a real method rather than relying
         // on a script handler.
-        $contact = self::request('GET', '/contact')['body'];
+        $contact = self::request('GET', '/fr/contact')['body'];
         self::assertStringContainsString('method="post"', $contact);
-        self::assertStringContainsString('action="/contact"', $contact);
+        self::assertStringContainsString('action="/fr/contact"', $contact);
     }
 
     /**
@@ -291,7 +355,7 @@ final class HttpServerSmokeTest extends TestCase
     public function testAProductionFiveHundredDisclosesNothing(): void
     {
         $host = self::server('exploding-production', 'tests/Fixtures/server/exploding.php', 'production', false);
-        $response = self::request('GET', '/', $host);
+        $response = self::request('GET', '/fr', $host);
 
         self::assertSame(500, $response['status']);
         self::assertStringContainsString('<!doctype html>', $response['body']);
@@ -313,7 +377,7 @@ final class HttpServerSmokeTest extends TestCase
     public function testLocalDebugShowsBoundedContextForTheSameFailure(): void
     {
         $host = self::server('exploding-debug', 'tests/Fixtures/server/exploding.php', 'local', true);
-        $response = self::request('GET', '/', $host);
+        $response = self::request('GET', '/fr', $host);
 
         self::assertSame(500, $response['status']);
         self::assertStringContainsString('RuntimeException', $response['body']);

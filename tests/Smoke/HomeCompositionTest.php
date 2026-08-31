@@ -54,7 +54,7 @@ final class HomeCompositionTest extends TestCase
             'APP_LOCALE' => 'en',
         ]));
 
-        $response = $application->handle(Request::create('GET', '/'));
+        $response = $application->handle(Request::create('GET', '/fr'));
 
         self::assertSame(200, $response->status());
 
@@ -156,7 +156,7 @@ final class HomeCompositionTest extends TestCase
     {
         $xpath = self::dom(self::htmlWithoutScripts());
 
-        foreach (['/projects', '/contact'] as $target) {
+        foreach (['/fr/projects', '/fr/contact'] as $target) {
             $links = self::query($xpath, sprintf('//main//a[@href="%s"]', $target));
 
             self::assertGreaterThan(0, $links->length, 'The hero must link to ' . $target);
@@ -241,7 +241,7 @@ final class HomeCompositionTest extends TestCase
         $xpath = self::dom(self::htmlWithoutScripts());
 
         $expected = array_map(
-            static fn (Project $project): string => '/projects/' . $project->slug()->value(),
+            static fn (Project $project): string => '/fr/projects/' . $project->slug()->value(),
             self::corpus()->featuredProjects()
         );
 
@@ -249,7 +249,7 @@ final class HomeCompositionTest extends TestCase
 
         $rendered = [];
 
-        foreach (self::query($xpath, '//main//a[starts-with(@href, "/projects/")]') as $link) {
+        foreach (self::query($xpath, '//main//a[starts-with(@href, "/fr/projects/")]') as $link) {
             $rendered[] = $link->getAttribute('href');
         }
 
@@ -268,7 +268,7 @@ final class HomeCompositionTest extends TestCase
         $xpath = self::dom(self::htmlWithoutScripts());
 
         foreach (self::corpus()->featuredProjects() as $project) {
-            $href = '/projects/' . $project->slug()->value();
+            $href = '/fr/projects/' . $project->slug()->value();
 
             $links = self::query($xpath, sprintf('//main//a[@href="%s"]', $href));
             self::assertCount(1, $links, 'Exactly one card links to ' . $href);
@@ -300,7 +300,7 @@ final class HomeCompositionTest extends TestCase
         $xpath = self::dom(self::htmlWithoutScripts());
 
         foreach (self::corpus()->featuredProjects() as $project) {
-            $href = '/projects/' . $project->slug()->value();
+            $href = '/fr/projects/' . $project->slug()->value();
             $card = self::query($xpath, sprintf('//main//article[.//a[@href="%s"]]', $href))->item(0);
             self::assertInstanceOf(DOMElement::class, $card);
 
@@ -319,9 +319,21 @@ final class HomeCompositionTest extends TestCase
             }
 
             if ($project->status()->isSubstantiated()) {
-                self::assertStringContainsString($project->status()->value, $cardText);
+                self::assertStringContainsString(self::label('content.status.' . $project->status()->value), $cardText);
             } else {
+                // A status no source states is not rendered at all — neither
+                // as the stored value nor as any label the shell has for one.
                 self::assertStringNotContainsString($project->status()->value, $cardText, 'An unspecified status is not a claim');
+
+                foreach (\Facet\Content\ProjectStatus::cases() as $case) {
+                    if ($case->isSubstantiated()) {
+                        self::assertStringNotContainsString(
+                            self::label('content.status.' . $case->value),
+                            $cardText,
+                            'An unspecified status is not a claim'
+                        );
+                    }
+                }
             }
 
             $period = $project->period();
@@ -438,7 +450,7 @@ final class HomeCompositionTest extends TestCase
             self::assertStringContainsString($experience->organisation(), $itemText);
             self::assertStringContainsString($experience->location(), $itemText);
             self::assertStringContainsString($experience->summary(), $itemText);
-            self::assertStringContainsString($experience->kind()->value, $itemText, 'The canonical kind is a label');
+            self::assertStringContainsString(self::label('content.experienceKind.' . $experience->kind()->value), $itemText, 'The canonical kind is a label');
             self::assertStringContainsString($experience->period()->start(), $itemText, 'Dates are preserved');
 
             $end = $experience->period()->end();
@@ -493,7 +505,7 @@ final class HomeCompositionTest extends TestCase
         self::assertInstanceOf(DOMElement::class, $last);
         self::assertSame('get-in-touch', $last->getAttribute('aria-labelledby'), 'The last section is the CTA');
 
-        $links = self::query($xpath, '//main/section[@aria-labelledby="get-in-touch"]//a[@href="/contact"]');
+        $links = self::query($xpath, '//main/section[@aria-labelledby="get-in-touch"]//a[@href="/fr/contact"]');
         self::assertCount(1, $links, 'The closing CTA links to /contact');
 
         $link = $links->item(0);
@@ -558,4 +570,17 @@ final class HomeCompositionTest extends TestCase
             );
         }
     }
+
+    /**
+     * A display name the shell writes for a canonical machine value.
+     *
+     * `in-progress`, `education` and `language` are stored vocabularies, not
+     * words: since PORT-137 the shell prints the translated label for each in
+     * the language of the page, so this is what a rendered page actually says.
+     */
+    private static function label(string $key): string
+    {
+        return (new \Facet\I18n\Translator(\Facet\I18n\Locale::Fr))->text($key);
+    }
+
 }

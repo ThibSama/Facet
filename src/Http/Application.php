@@ -26,6 +26,12 @@ use Facet\Content\Project;
 use Facet\Auth\AccessPolicy;
 use Facet\Auth\AuthService;
 use Facet\Auth\Authenticator;
+use Facet\I18n\Locale;
+use Facet\I18n\LocalePreference;
+use Facet\I18n\LocaleResolver;
+use Facet\I18n\LocalizedRoutes;
+use Facet\I18n\Translator;
+use Facet\Navigation\LanguageSwitch;
 use Facet\Navigation\Navigation;
 use Facet\Routing\HttpMethod;
 use Facet\Routing\RouteCatalog;
@@ -112,7 +118,10 @@ final class Application
 
     private ?SiteUrl $siteUrl;
 
-    private ?Corpus $corpus = null;
+    private LocaleResolver $locales;
+
+    /** @var array<string, Corpus> the corpus of each locale asked for, once */
+    private array $corpora = [];
 
     private function __construct(
         string $basePath,
@@ -148,6 +157,7 @@ final class Application
         $this->authenticator = new Authenticator($accounts, $session, $this->csrf);
         $this->auth = new AuthService($accounts);
         $this->guard = new AccessGuard($this->authenticator, $session, $this->csrf);
+        $this->locales = new LocaleResolver();
         $this->siteUrl = SiteUrl::fromConfig($config);
         $this->seo = new SeoMetadataFactory(
             $this->siteUrl,
@@ -254,6 +264,10 @@ final class Application
         $skin = null;
         $assets = AssetBundle::empty();
         $privateResponse = false;
+        // Known before routing so that a failure *during* routing still has a
+        // language to be reported in. A URL that names one is believed; nothing
+        // else has spoken yet, so the visitor's own preference decides.
+        $locale = self::localeInPath($request) ?? $this->locales->resolve($request);
 
         try {
             $selection = $this->selectSkin($request->query(), $request->cookies());
@@ -281,6 +295,16 @@ final class Application
             }
 
             $route = $match->route();
+
+            // An unprefixed entry URL is not a page: it is where a link written
+            // before the site had languages, or somebody typing the domain,
+            // arrives. It resolves a preferred language and sends the visitor
+            // to the canonical localized URL, so there is never a second
+            // indexable spelling of the same page.
+            if (RouteCatalog::isEntry($route->name())) {
+                return $this->enterLocale($route, $match->parameters(), $request, $locale);
+            }
+
             $privateResponse = $route->visibility()->requiresAuthentication();
 
             // Authorisation happens here — after routing, before dispatch, and
@@ -295,30 +319,122 @@ final class Application
                     : $guarded;
             }
 
-            $response = $this->dispatch($route, $match->parameters(), $request, $selection, $assets);
+            // An explicit locale in the URL always wins, whatever is
+            // remembered and whatever the browser asked for. That is what makes
+            // a shared link mean the same page for the person who sent it and
+            // the person who opens it.
+            $locale = self::localeOf($match->parameters()) ?? $locale;
 
-            return $privateResponse
+            $response = $this->dispatch($route, $match->parameters(), $request, $selection, $assets, $locale);
+
+            $response = $privateResponse
                 || $route->name() === RouteCatalog::LOGIN
                 || !$request->isMethod(HttpMethod::Get)
                     ? $response->withHeader('X-Robots-Tag', 'noindex, nofollow')
                     : $response;
+
+            return $this->remember($response, $request, $route, $locale);
         } catch (HttpException $error) {
             return $this->errors->present(
                 $error,
                 $error->statusCode(),
                 $skin,
-                $this->sharedData($request, $skin, null, $assets) + ['noIndex' => true],
-                $request
+                $this->sharedData($request, $locale, $skin, null, $assets) + ['noIndex' => true],
+                $request,
+                $locale
             );
         } catch (Throwable $error) {
             return $this->errors->present(
                 $error,
                 Response::STATUS_INTERNAL_SERVER_ERROR,
                 $skin,
-                $this->sharedData($request, $skin, null, $assets) + ['noIndex' => true],
-                $request
+                $this->sharedData($request, $locale, $skin, null, $assets) + ['noIndex' => true],
+                $request,
+                $locale
             );
         }
+    }
+
+    /**
+     * Answers an unprefixed entry URL with the canonical localized one.
+     *
+     * 302 rather than 301: the target depends on a preference the visitor may
+     * change, and a permanent redirect would declare one language to be
+     * permanently what `/projects` means. The query string travels, because it
+     * is part of what was asked for.
+     *
+     * @param array<string, string> $parameters
+     */
+    private function enterLocale(
+        RouteDefinition $route,
+        array $parameters,
+        Request $request,
+        Locale $locale
+    ): Response {
+        $target = RouteCatalog::localizedFor($route->name());
+
+        if ($target === null) {
+            throw HttpException::internal(sprintf('Route "%s" is not an entry route.', $route->name()));
+        }
+
+        return Response::redirect(
+            LocalizedRoutes::withQuery(
+                LocalizedRoutes::path($target, $locale, $parameters),
+                $request->queryString()
+            ),
+            Response::STATUS_FOUND
+        );
+    }
+
+    /**
+     * Remembers the language a visitor is actually reading the site in.
+     *
+     * Written only when it would change, so an ordinary page view does not
+     * carry a `Set-Cookie` it has no reason to. Visiting an explicit localized
+     * URL updates the preference on purpose: following an `/en/...` link is a
+     * clearer statement of intent than anything a header can say, so the next
+     * unprefixed entry lands in English.
+     */
+    private function remember(
+        Response $response,
+        Request $request,
+        RouteDefinition $route,
+        Locale $locale
+    ): Response {
+        if (!in_array($route->name(), RouteCatalog::localizedNames(), true)) {
+            return $response;
+        }
+
+        if (LocalePreference::read($request->cookies()) === $locale) {
+            return $response;
+        }
+
+        return $response->withHeader(
+            'Set-Cookie',
+            LocalePreference::header($locale, $this->siteUrl?->isSecure() ?? false)
+        );
+    }
+
+    /**
+     * The locale a request path names, read before routing.
+     *
+     * Deliberately not a second router: it reads the first segment through the
+     * same {@see Locale} contract the route parameter validates with, so it can
+     * only ever agree with what the router will decide.
+     */
+    private static function localeInPath(Request $request): ?Locale
+    {
+        $segments = $request->segments();
+
+        return $segments === [] ? null : Locale::fromSegment($segments[0]);
+    }
+
+    /**
+     * @param array<string, string> $parameters
+     */
+    private static function localeOf(array $parameters): ?Locale
+    {
+        return isset($parameters['locale']) ? Locale::fromSegment($parameters['locale']) : null;
     }
 
     /**
@@ -333,7 +449,8 @@ final class Application
         array $parameters,
         Request $request,
         SkinSelection $selection,
-        AssetBundle $assets
+        AssetBundle $assets,
+        Locale $locale
     ): Response {
         if ($route->name() === RouteCatalog::SITEMAP) {
             return $this->sitemap();
@@ -343,32 +460,41 @@ final class Application
             return $this->robots();
         }
 
-        $shared = $this->sharedData($request, $selection->skin(), $selection, $assets);
+        $corpus = $this->corpus($locale);
+        $shared = $this->sharedData($request, $locale, $selection->skin(), $selection, $assets, $route, $parameters);
 
         $project = $route->name() === RouteCatalog::PROJECTS_SHOW
-            ? $this->requireProject($parameters['slug'] ?? '')
+            ? $this->requireProject($corpus, $parameters['slug'] ?? '')
             : null;
-        $shared['seo'] = $this->seo->forRoute($route, $request, $this->corpus(), $project);
+        $shared['seo'] = $this->seo->forRoute(
+            $route,
+            $request,
+            $corpus,
+            $locale,
+            new Translator($locale),
+            $parameters,
+            $project
+        );
 
         return match ($route->name()) {
             RouteCatalog::HOME => $this->page($route, $selection, $shared + [
-                'profile' => $this->corpus()->profile(),
-                'projects' => $this->corpus()->featuredProjects(),
-                'skills' => $this->corpus()->skills(),
-                'experiences' => $this->corpus()->experiences(),
+                'profile' => $corpus->profile(),
+                'projects' => $corpus->featuredProjects(),
+                'skills' => $corpus->skills(),
+                'experiences' => $corpus->experiences(),
             ]),
             RouteCatalog::PROJECTS_INDEX => $this->page($route, $selection, $shared + [
-                'projects' => $this->corpus()->projects(),
+                'projects' => $corpus->projects(),
             ]),
             RouteCatalog::PROJECTS_SHOW => $this->page($route, $selection, $shared + [
                 'project' => $project,
             ]),
             RouteCatalog::ABOUT => $this->page($route, $selection, $shared + [
-                'profile' => $this->corpus()->profile(),
-                'skills' => $this->corpus()->skills(),
-                'experiences' => $this->corpus()->experiences(),
+                'profile' => $corpus->profile(),
+                'skills' => $corpus->skills(),
+                'experiences' => $corpus->experiences(),
             ]),
-            RouteCatalog::CONTACT => $this->contact($route, $request, $selection, $shared),
+            RouteCatalog::CONTACT => $this->contact($route, $request, $selection, $shared, $locale),
             RouteCatalog::LOGIN => $this->login($route, $request, $selection, $shared),
             RouteCatalog::LOGOUT => $this->logout(),
             RouteCatalog::ADMIN_DASHBOARD => $this->privatePage($route, $selection, $shared),
@@ -417,21 +543,25 @@ final class Application
         RouteDefinition $route,
         Request $request,
         SkinSelection $selection,
-        array $shared
+        array $shared,
+        Locale $locale
     ): Response {
+        $translator = new Translator($locale);
+
         if (!$request->isMethod(HttpMethod::Post)) {
             // A one-shot flash: read here and gone, so a second GET of the same
             // URL shows the form rather than re-announcing a message that was
             // already confirmed.
             $sent = $this->session->pull(self::CONTACT_FLASH) === self::CONTACT_FLASH_SENT;
 
-            return $this->contactPage($route, $selection, $shared, $sent ? [
+            return $this->contactPage($route, $selection, $shared, $locale, $sent ? [
                 'notice' => [
                     'kind' => 'success',
                     // Receipt and storage, and not a word beyond it. Nothing
                     // here emails, forwards or acknowledges anything, so a
-                    // promise to reply would be a promise no code keeps.
-                    'text' => 'Thank you — your message has been received and stored on this site.',
+                    // promise to reply would be a promise no code keeps. The
+                    // sentence is translated; what it promises is not.
+                    'text' => $translator->text('contact.notice.sent'),
                 ],
             ] : []);
         }
@@ -450,14 +580,13 @@ final class Application
         $validation = $this->validator->validate($request->body());
 
         if (!$decision->isAllowed()) {
-            return $this->contactPage($route, $selection, $shared, [
+            return $this->contactPage($route, $selection, $shared, $locale, [
                 'values' => $validation->values(),
                 'notice' => [
                     'kind' => 'error',
-                    'text' => sprintf(
-                        'That is several messages in a short time. Please try again in about %d minutes.',
-                        max(1, (int) ceil($decision->retryAfterSeconds() / 60))
-                    ),
+                    'text' => $translator->text('contact.notice.throttled', [
+                        'minutes' => max(1, (int) ceil($decision->retryAfterSeconds() / 60)),
+                    ]),
                 ],
             ], Response::STATUS_TOO_MANY_REQUESTS);
         }
@@ -466,16 +595,16 @@ final class Application
             // Answered exactly as a real submission is — same status, same
             // redirect, same flash. A bot that could tell the difference would
             // simply stop filling the field in.
-            return $this->acceptedContactRedirect($route);
+            return $this->acceptedContactRedirect($route, $locale);
         }
 
         if (!$validation->isValid()) {
-            return $this->contactPage($route, $selection, $shared, [
+            return $this->contactPage($route, $selection, $shared, $locale, [
                 'values' => $validation->values(),
-                'errors' => $validation->errors(),
+                'errors' => self::contactErrors($validation->errors(), $translator),
                 'notice' => [
                     'kind' => 'error',
-                    'text' => 'Your message was not sent. Please correct the fields marked below.',
+                    'text' => $translator->text('contact.notice.invalid'),
                 ],
             ], Response::STATUS_UNPROCESSABLE_CONTENT);
         }
@@ -495,17 +624,41 @@ final class Application
             // the visitor keeps what they typed and is told plainly that it was
             // not received — the one thing worse than losing a message is
             // claiming to have kept it. The cause never reaches the page.
-            return $this->contactPage($route, $selection, $shared, [
+            return $this->contactPage($route, $selection, $shared, $locale, [
                 'values' => $validation->values(),
                 'notice' => [
                     'kind' => 'error',
-                    'text' => 'Your message could not be stored, so it has not been received. '
-                        . 'Please try again shortly, or use one of the links below.',
+                    'text' => $translator->text('contact.notice.storeFailed'),
                 ],
             ], Response::STATUS_INTERNAL_SERVER_ERROR);
         }
 
-        return $this->acceptedContactRedirect($route);
+        return $this->acceptedContactRedirect($route, $locale);
+    }
+
+    /**
+     * Turns the validator's reasons into the sentences this page will show.
+     *
+     * The validator decides *what* is wrong and this decides *how it is said*,
+     * which is the whole reason the contact form needs no second, translated
+     * copy of its own rules: one validator, one set of bounds, one storage
+     * path, two languages.
+     *
+     * @param array<string, string> $reasons field name => reason identifier
+     *
+     * @return array<string, string>
+     */
+    private static function contactErrors(array $reasons, Translator $translator): array
+    {
+        $messages = [];
+
+        foreach ($reasons as $field => $reason) {
+            $messages[$field] = $translator->text('contact.error.' . $reason, [
+                'max' => ContactValidator::MAX_LENGTHS[$field] ?? 0,
+            ]);
+        }
+
+        return $messages;
     }
 
     /**
@@ -521,12 +674,18 @@ final class Application
      * type, link to, or screenshot into a false confirmation, and it would
      * announce a stored message where none exists.
      */
-    private function acceptedContactRedirect(RouteDefinition $route): Response
+    private function acceptedContactRedirect(RouteDefinition $route, Locale $locale): Response
     {
         $this->csrf->rotate($this->session);
         $this->session->put(self::CONTACT_FLASH, self::CONTACT_FLASH_SENT);
 
-        return Response::redirect($route->path(), Response::STATUS_SEE_OTHER);
+        // The landing page is the contact page of the language the submission
+        // was made in. A confirmation that arrived in the other language would
+        // be a page the visitor never asked for.
+        return Response::redirect(
+            LocalizedRoutes::path($route->name(), $locale),
+            Response::STATUS_SEE_OTHER
+        );
     }
 
     /**
@@ -543,6 +702,7 @@ final class Application
         RouteDefinition $route,
         SkinSelection $selection,
         array $shared,
+        Locale $locale,
         array $state = [],
         int $status = Response::STATUS_OK
     ): Response {
@@ -551,7 +711,7 @@ final class Application
             // alternative way to reach the author: the view must never write
             // an address of its own, so it is handed the links rather than
             // left to invent them.
-            'profile' => $this->corpus()->profile(),
+            'profile' => $this->corpus($locale)->profile(),
             'csrfField' => CsrfGuard::FIELD,
             'csrfToken' => $this->csrf->token($this->session),
             'honeypotField' => self::CONTACT_HONEYPOT,
@@ -679,8 +839,11 @@ final class Application
     {
         $this->authenticator->logout();
 
+        // The unprefixed entry route, which negotiates a language of its own.
+        // Choosing one here would be this handler deciding what a signed-out
+        // visitor reads, which is not its decision to make.
         return Response::redirect(
-            RouteCatalog::get(RouteCatalog::HOME)->path(),
+            RouteCatalog::get(RouteCatalog::HOME_ENTRY)->path(),
             Response::STATUS_SEE_OTHER
         );
     }
@@ -815,13 +978,13 @@ final class Application
      * resolves it. A malformed slug never reaches the corpus, and an unknown
      * one is a 404 rather than an exception surfacing to the user.
      */
-    private function requireProject(string $slug): Project
+    private function requireProject(Corpus $corpus, string $slug): Project
     {
         if (!Slug::isValid($slug)) {
             throw HttpException::notFound(sprintf('"%s" is not a valid slug.', $slug));
         }
 
-        $project = $this->corpus()->findProject(Slug::fromString($slug));
+        $project = $corpus->findProject(Slug::fromString($slug));
 
         if ($project === null) {
             throw HttpException::notFound(sprintf('No project has the slug "%s".', $slug));
@@ -833,25 +996,49 @@ final class Application
     /**
      * Data every view of a request receives, whatever it renders.
      *
+     * @param array<string, string> $parameters the parameters the router matched
+     *
      * @return array<string, mixed>
      */
     private function sharedData(
         Request $request,
+        Locale $locale,
         ?SkinDefinition $skin,
         ?SkinSelection $selection = null,
-        ?AssetBundle $assets = null
+        ?AssetBundle $assets = null,
+        ?RouteDefinition $route = null,
+        array $parameters = []
     ): array
     {
+        $translator = new Translator($locale);
+
         $data = [
             'appName' => $this->config->get('APP_NAME', 'Facet') ?? 'Facet',
-            'locale' => $this->config->get('APP_LOCALE', 'en') ?? 'en',
+            // The language of the document being rendered — the URL's, not the
+            // deployment's. `APP_LOCALE` no longer decides what a page is
+            // written in; the canonical URL does.
+            'locale' => $locale,
+            't' => $translator,
             'environment' => $this->config->environment(),
             'path' => $request->path(),
+            // The route's *identity*, which is what a skin should style against.
+            // A URL is a spelling — and since PORT-137 every public page has two
+            // of them — so a stylesheet that keys off the path is a stylesheet
+            // that stops applying the moment the path gains a language segment.
+            // The catalog's route name never moves.
+            'routeName' => $route?->name(),
             'assets' => $assets ?? AssetBundle::empty(),
             // The shell is rendered by every view, including error views, so
             // the navigation model is shared data rather than page data — a
-            // 404 gets the same working header as a 200.
-            'navigation' => Navigation::primary($request->path()),
+            // 404 gets the same working header as a 200, in the same language.
+            'navigation' => Navigation::primary($locale, $translator, $request->path()),
+            'languageSwitch' => LanguageSwitch::create(
+                $locale,
+                $translator,
+                $route,
+                $parameters,
+                $request->query()
+            ),
         ];
 
         if ($skin !== null) {
@@ -866,10 +1053,16 @@ final class Application
     }
 
     /**
-     * The canonical corpus, loaded once per request.
+     * The canonical corpus in one language, loaded once per request.
+     *
+     * Facts come from the same files whatever the locale; only prose is
+     * overlaid. See {@see \Facet\Content\TranslationOverlay}.
      */
-    private function corpus(): Corpus
+    private function corpus(?Locale $locale = null): Corpus
     {
-        return $this->corpus ??= CorpusLoader::default($this->basePath)->load();
+        $locale ??= Locale::default();
+
+        return $this->corpora[$locale->value]
+            ??= CorpusLoader::default($this->basePath)->load($locale);
     }
 }

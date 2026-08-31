@@ -311,26 +311,26 @@ final class ContactMessagePersistenceTest extends TestCase
         $session = new ArraySession();
         $app = $this->application($session);
 
-        $page = $app->handle(Request::create('GET', '/contact'));
+        $page = $app->handle(Request::create('GET', '/fr/contact'));
         self::assertSame(200, $page->status());
         self::assertSame(0, $this->rowCount(), 'Rendering the form touches nothing');
 
         $token = $this->tokenOf($page);
 
-        $posted = $app->handle(Request::create('POST', '/contact', [], [
+        $posted = $app->handle(Request::create('POST', '/fr/contact', [], [
             CsrfGuard::FIELD => $token,
         ] + self::VALID));
 
         self::assertSame(303, $posted->status());
-        self::assertSame('/contact', $posted->header('Location'));
+        self::assertSame('/fr/contact', $posted->header('Location'));
         self::assertSame(1, $this->rowCount());
 
-        $landing = $app->handle(Request::create('GET', '/contact'));
-        self::assertStringContainsString('has been received', $landing->body());
+        $landing = $app->handle(Request::create('GET', '/fr/contact'));
+        self::assertStringContainsString('a été reçu', $landing->body());
         self::assertSame(1, $this->rowCount(), 'Following the redirect stores nothing more');
 
         for ($i = 0; $i < 5; $i++) {
-            $app->handle(Request::create('GET', '/contact'));
+            $app->handle(Request::create('GET', '/fr/contact'));
         }
 
         self::assertSame(1, $this->rowCount(), 'No refresh may add a row');
@@ -350,7 +350,7 @@ final class ContactMessagePersistenceTest extends TestCase
         $clock = new FrozenClock();
         $app = $this->application($session, $clock);
 
-        $token = $this->tokenOf($app->handle(Request::create('GET', '/contact')));
+        $token = $this->tokenOf($app->handle(Request::create('GET', '/fr/contact')));
 
         $refusals = [
             'no token' => self::VALID,
@@ -365,7 +365,7 @@ final class ContactMessagePersistenceTest extends TestCase
         ];
 
         foreach ($refusals as $why => $body) {
-            $response = $app->handle(Request::create('POST', '/contact', [], $body));
+            $response = $app->handle(Request::create('POST', '/fr/contact', [], $body));
 
             self::assertNotSame(200, $response->status(), $why);
             self::assertSame(0, $this->rowCount(), $why . ' must leave the table empty');
@@ -373,8 +373,8 @@ final class ContactMessagePersistenceTest extends TestCase
 
         // The honeypot consumed the token by answering as a success would, so
         // the genuine submission that follows takes a fresh one.
-        $genuine = $app->handle(Request::create('POST', '/contact', [], [
-            CsrfGuard::FIELD => $this->tokenOf($app->handle(Request::create('GET', '/contact'))),
+        $genuine = $app->handle(Request::create('POST', '/fr/contact', [], [
+            CsrfGuard::FIELD => $this->tokenOf($app->handle(Request::create('GET', '/fr/contact'))),
         ] + self::VALID));
 
         self::assertSame(303, $genuine->status());
@@ -391,9 +391,9 @@ final class ContactMessagePersistenceTest extends TestCase
         $app = $this->application($session, $clock);
 
         for ($i = 0; $i < 20; $i++) {
-            $token = $this->tokenOf($app->handle(Request::create('GET', '/contact')));
+            $token = $this->tokenOf($app->handle(Request::create('GET', '/fr/contact')));
 
-            $app->handle(Request::create('POST', '/contact', [], [CsrfGuard::FIELD => $token] + self::VALID));
+            $app->handle(Request::create('POST', '/fr/contact', [], [CsrfGuard::FIELD => $token] + self::VALID));
         }
 
         self::assertSame(

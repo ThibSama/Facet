@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Facet\Tests\Unit\Navigation;
 
+use Facet\I18n\Locale;
+use Facet\I18n\LocalizedRoutes;
+use Facet\I18n\Translator;
 use Facet\Navigation\Navigation;
 use Facet\Navigation\NavigationItem;
 use Facet\Routing\RouteCatalog;
@@ -32,17 +35,35 @@ final class NavigationTest extends TestCase
         return $navigation->current()?->label();
     }
 
+    /** The navigation of one page, in one language. */
+    private static function navigation(string $path, Locale $locale = Locale::Fr): Navigation
+    {
+        return Navigation::primary($locale, new Translator($locale), $path);
+    }
+
     public function testPrimaryNavigationExposesTheServedPublicSectionsInOrder(): void
     {
-        $navigation = Navigation::primary('/');
+        $french = self::navigation('/fr');
 
-        self::assertSame(['/', '/projects', '/about', '/contact'], self::hrefs($navigation));
+        self::assertSame(['/fr', '/fr/projects', '/fr/about', '/fr/contact'], self::hrefs($french));
+        self::assertSame(
+            ['Accueil', 'Projets', 'À propos', 'Contact'],
+            array_map(static fn (NavigationItem $item): string => $item->label(), $french->items())
+        );
+        self::assertFalse($french->isEmpty());
+        self::assertSame('Navigation principale', $french->label());
+
+        // The same sections, the same order, the other language — links
+        // included. A shell that named its sections in English and linked them
+        // in French would be the exact defect PORT-137 exists to remove.
+        $english = self::navigation('/en', Locale::En);
+
+        self::assertSame(['/en', '/en/projects', '/en/about', '/en/contact'], self::hrefs($english));
         self::assertSame(
             ['Home', 'Projects', 'About', 'Contact'],
-            array_map(static fn (NavigationItem $item): string => $item->label(), $navigation->items())
+            array_map(static fn (NavigationItem $item): string => $item->label(), $english->items())
         );
-        self::assertFalse($navigation->isEmpty());
-        self::assertSame('Primary', $navigation->label());
+        self::assertSame('Primary', $english->label());
     }
 
     /**
@@ -51,14 +72,23 @@ final class NavigationTest extends TestCase
      */
     public function testEveryLinkComesFromTheRouteCatalog(): void
     {
-        foreach (Navigation::primary('/')->items() as $item) {
-            self::assertTrue(RouteCatalog::has($item->routeName()));
+        foreach (Locale::supported() as $locale) {
+            foreach (self::navigation('/', $locale)->items() as $item) {
+                self::assertTrue(RouteCatalog::has($item->routeName()));
 
-            $route = RouteCatalog::get($item->routeName());
+                $route = RouteCatalog::get($item->routeName());
 
-            self::assertSame($route->path(), $item->href());
-            self::assertSame(Visibility::Public, $route->visibility());
-            self::assertFalse($route->isDynamic(), 'A shell link must not need parameters');
+                self::assertSame(LocalizedRoutes::path($route->name(), $locale), $item->href());
+                self::assertSame(Visibility::Public, $route->visibility());
+                self::assertSame(
+                    ['locale'],
+                    array_map(
+                        static fn (\Facet\Routing\RouteParameter $p): string => $p->name(),
+                        $route->parameters()
+                    ),
+                    'A shell link may need the language and nothing else'
+                );
+            }
         }
     }
 
@@ -70,7 +100,7 @@ final class NavigationTest extends TestCase
     {
         $names = array_map(
             static fn (NavigationItem $item): string => $item->routeName(),
-            Navigation::primary('/')->items()
+            self::navigation('/fr')->items()
         );
 
         foreach ([RouteCatalog::LOGIN, RouteCatalog::ADMIN_DASHBOARD, RouteCatalog::ADMIN_MESSAGES, RouteCatalog::CLIENT_AREA] as $hidden) {
@@ -80,8 +110,15 @@ final class NavigationTest extends TestCase
 
     public function testAnExactPathMarksExactlyOneItemCurrent(): void
     {
-        foreach (['/' => 'Home', '/projects' => 'Projects', '/about' => 'About', '/contact' => 'Contact'] as $path => $label) {
-            $navigation = Navigation::primary($path);
+        $expected = [
+            '/fr' => 'Accueil',
+            '/fr/projects' => 'Projets',
+            '/fr/about' => 'À propos',
+            '/fr/contact' => 'Contact',
+        ];
+
+        foreach ($expected as $path => $label) {
+            $navigation = self::navigation($path);
 
             $current = array_values(array_filter(
                 $navigation->items(),
@@ -100,10 +137,12 @@ final class NavigationTest extends TestCase
      */
     public function testANestedProjectUrlMarksItsSectionCurrent(): void
     {
-        foreach (['/projects/kushim', '/projects/kushim/anything/deeper'] as $path) {
-            $navigation = Navigation::primary($path);
+        foreach (['/fr/projects/kushim', '/fr/projects/kushim/anything/deeper'] as $path) {
+            self::assertSame('Projets', self::currentLabel(self::navigation($path)), $path);
+        }
 
-            self::assertSame('Projects', self::currentLabel($navigation), $path);
+        foreach (['/en/projects/kushim', '/en/projects/kushim/anything/deeper'] as $path) {
+            self::assertSame('Projects', self::currentLabel(self::navigation($path, Locale::En)), $path);
         }
     }
 
@@ -113,10 +152,10 @@ final class NavigationTest extends TestCase
      */
     public function testHomeIsNotCurrentForEveryOtherPath(): void
     {
-        foreach (['/projects', '/projects/kushim', '/about', '/contact'] as $path) {
-            $home = Navigation::primary($path)->items()[0];
+        foreach (['/fr/projects', '/fr/projects/kushim', '/fr/about', '/fr/contact'] as $path) {
+            $home = self::navigation($path)->items()[0];
 
-            self::assertSame('Home', $home->label());
+            self::assertSame('Accueil', $home->label());
             self::assertFalse($home->isCurrent(), $path . ' must not mark Home current');
             self::assertNull($home->ariaCurrent());
         }
@@ -127,8 +166,11 @@ final class NavigationTest extends TestCase
      */
     public function testAPrefixThatIsNotASegmentBoundaryIsNotCurrent(): void
     {
-        self::assertNull(self::currentLabel(Navigation::primary('/projectsomething')));
-        self::assertNull(self::currentLabel(Navigation::primary('/aboutus')));
+        self::assertNull(self::currentLabel(self::navigation('/fr/projectsomething')));
+        self::assertNull(self::currentLabel(self::navigation('/fr/aboutus')));
+
+        // And the locale root itself is exact: "/french-thing" is not "/fr".
+        self::assertNull(self::currentLabel(self::navigation('/french-thing')));
     }
 
     /**
@@ -137,7 +179,7 @@ final class NavigationTest extends TestCase
      */
     public function testAnUnknownPathStillProducesTheFullNavigation(): void
     {
-        $navigation = Navigation::primary('/definitely-not-a-page');
+        $navigation = self::navigation('/definitely-not-a-page');
 
         self::assertCount(4, $navigation->items());
         self::assertNull($navigation->current());

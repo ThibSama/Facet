@@ -68,7 +68,7 @@ final class ProjectCaseStudyTest extends TestCase
 
     private static function href(Project $project): string
     {
-        return '/projects/' . $project->slug()->value();
+        return '/fr/projects/' . $project->slug()->value();
     }
 
     private static function mainText(DOMXPath $xpath): string
@@ -95,13 +95,13 @@ final class ProjectCaseStudyTest extends TestCase
         }
 
         $rejected = [
-            '/projects/does-not-exist',
-            '/projects/Kushim',
-            '/projects/-kushim',
-            '/projects/kushim--x',
-            '/projects/k',
-            '/projects/' . str_repeat('a', 65),
-            '/projects/kushim.php',
+            '/fr/projects/does-not-exist',
+            '/fr/projects/Kushim',
+            '/fr/projects/-kushim',
+            '/fr/projects/kushim--x',
+            '/fr/projects/k',
+            '/fr/projects/' . str_repeat('a', 65),
+            '/fr/projects/kushim.php',
         ];
 
         foreach ($rejected as $target) {
@@ -116,9 +116,9 @@ final class ProjectCaseStudyTest extends TestCase
         // A non-canonical spelling is normalised by the accepted one-URL rule
         // before it ever reaches the corpus, so it redirects rather than 404s —
         // and the target of that redirect is itself not a project.
-        $encoded = self::get('/projects/%2e%2e');
+        $encoded = self::get('/fr/projects/%2e%2e');
         self::assertSame(301, $encoded->status(), 'A percent-encoded path is redirected, not served');
-        self::assertNotSame(200, self::get('/projects/..')->status(), 'And its canonical form resolves to nothing');
+        self::assertNotSame(200, self::get('/fr/projects/..')->status(), 'And its canonical form resolves to nothing');
     }
 
     // ---------------------------------------------------------- narrative
@@ -168,7 +168,7 @@ final class ProjectCaseStudyTest extends TestCase
 
             // Status.
             if ($project->status()->isSubstantiated()) {
-                self::assertStringContainsString($project->status()->value, $text);
+                self::assertStringContainsString(self::label('content.status.' . $project->status()->value), $text);
             } else {
                 $omissions++;
             }
@@ -208,13 +208,17 @@ final class ProjectCaseStudyTest extends TestCase
 
             self::assertSame($expected, $rendered, $href . ' states exactly the fields the corpus documents');
 
+            // Scoped to the field labels rather than to the whole page text:
+            // the section that holds them is itself called "Technologies et
+            // concepts" in French, so a scan of the prose would read the
+            // heading as a field. What must be absent is the *field*.
             if ($project->technologies() === []) {
-                self::assertStringNotContainsString('Technologies', $text, $href . ' documents no stack');
+                self::assertArrayNotHasKey('Technologies', $rendered, $href . ' documents no stack');
                 $omissions++;
             }
 
             if ($project->concepts() === []) {
-                self::assertStringNotContainsString('Concepts', $text);
+                self::assertArrayNotHasKey('Concepts', $rendered);
             }
 
             // Outcomes.
@@ -354,20 +358,20 @@ final class ProjectCaseStudyTest extends TestCase
      */
     public function testTheCatalogueAndItsDetailsCrawlWithoutJavaScript(): void
     {
-        $index = Dom::withoutScripts(self::html('/projects'));
+        $index = Dom::withoutScripts(self::html('/fr/projects'));
         self::assertStringNotContainsStringIgnoringCase('<script', $index);
 
         $indexXpath = Dom::of($index);
         $reached = [];
 
-        foreach (Dom::attributes($indexXpath, '//main//a[starts-with(@href, "/projects/")]', 'href') as $target) {
+        foreach (Dom::attributes($indexXpath, '//main//a[starts-with(@href, "/fr/projects/")]', 'href') as $target) {
             $detail = Dom::withoutScripts(self::html($target));
             self::assertStringNotContainsStringIgnoringCase('<script', $detail);
 
             $detailXpath = Dom::of($detail);
 
             // Every case study offers the way back, as a plain link.
-            $back = Dom::query($detailXpath, '//main//a[@href="/projects"]');
+            $back = Dom::query($detailXpath, '//main//a[@href="/fr/projects"]');
             self::assertGreaterThan(0, $back->length, $target . ' must link back to the catalogue');
 
             $first = $back->item(0);
@@ -385,4 +389,17 @@ final class ProjectCaseStudyTest extends TestCase
         $expected = array_map(self::href(...), self::corpus()->projects());
         self::assertSame($expected, $reached, 'The crawl reaches every canonical project and nothing else');
     }
+
+    /**
+     * A display name the shell writes for a canonical machine value.
+     *
+     * `in-progress`, `education` and `language` are stored vocabularies, not
+     * words: since PORT-137 the shell prints the translated label for each in
+     * the language of the page, so this is what a rendered page actually says.
+     */
+    private static function label(string $key): string
+    {
+        return (new \Facet\I18n\Translator(\Facet\I18n\Locale::Fr))->text($key);
+    }
+
 }

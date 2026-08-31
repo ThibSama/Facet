@@ -18,6 +18,16 @@
  * informational one.
  */
 
+/**
+ * The most fragments this effect will ever be asked to shade, per frame.
+ *
+ * 352 x 440 — the footprint the accepted hero occupied at a device-pixel ratio
+ * of one. It is a deliberate ceiling rather than a measurement of any one
+ * layout: whatever a composition decides the visual should look like, this is
+ * what it is allowed to cost. See the note in `resize`.
+ */
+const MAX_PIXELS = 154_880;
+
 /** A mounted effect. Every resource it holds is released by `destroy()`. */
 interface HeroHandle {
   destroy(): void;
@@ -259,8 +269,31 @@ function mountHero(slot: HTMLElement): HeroHandle | null {
 
   const resize = (): void => {
     const next = slot.getBoundingClientRect();
-    const nextWidth = Math.max(1, Math.round(next.width * ratio));
-    const nextHeight = Math.max(1, Math.round(next.height * ratio));
+    /*
+     * The backing store is budgeted, and the budget is why the slot's size and
+     * the effect's cost stopped being the same decision.
+     *
+     * This shader is two Voronoi passes — thirty-four hashed cells per
+     * fragment, and a sine per cell. PORT-99 measured it at 0.008 ms of main
+     * thread per frame and chose it on that number, but that number is the
+     * *main thread's* share: the fragments themselves are the GPU's, and on a
+     * machine with no GPU worth the name they are the CPU's. So the one thing
+     * that must not happen is for a composition that wants a larger visual to
+     * silently buy a proportionally larger per-frame bill — which is exactly
+     * what PORT-136's hero did, at two and a quarter times the fragments.
+     *
+     * `MAX_PIXELS` is the accepted visual's own footprint at a ratio of one,
+     * so a slot that size renders exactly as it always did and nothing about
+     * the accepted effect changes. A larger slot is rendered into the same
+     * budget and scaled up by the compositor, which costs nothing per frame
+     * and is invisible here: the field is low-frequency and its seams are
+     * feathered over three per cent of the shorter side, so they are tens of
+     * pixels wide before any scaling and stay soft after it.
+     */
+    const budget = Math.min(1, Math.sqrt(MAX_PIXELS / Math.max(1, next.width * next.height * ratio * ratio)));
+    const scale = ratio * budget;
+    const nextWidth = Math.max(1, Math.round(next.width * scale));
+    const nextHeight = Math.max(1, Math.round(next.height * scale));
 
     if (nextWidth === width && nextHeight === height) {
       return;

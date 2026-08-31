@@ -35,13 +35,27 @@
  * @var array<string, string>   $values        normalised values to redisplay
  * @var array<string, string>   $errors        field name => reason
  * @var array{kind: string, text: string}|null $notice form-level statement
+ * @var \Facet\I18n\Translator $t
+ * @var \Facet\I18n\Locale     $locale
  */
 
 declare(strict_types=1);
 
 use Facet\Html\Html;
+use Facet\I18n\LocalizedRoutes;
+use Facet\Routing\RouteCatalog;
 
-$title = 'Contact';
+require dirname(__DIR__) . '/partials/locale-context.php';
+
+$title = $t->text('contact.title');
+
+/*
+ * The form posts to the contact page of the language it was rendered in, and
+ * the runtime redirects a successful submission back to the same one. Locale is
+ * routing context here and nothing more: one validator, one CSRF contract, one
+ * rate limit, one store — see Application::contact().
+ */
+$formAction = LocalizedRoutes::path(RouteCatalog::CONTACT, $locale);
 
 $profileLinks = $profile->links();
 
@@ -59,15 +73,15 @@ $notice = $notice ?? null;
 $fields = [
     [
         'name' => 'name',
-        'label' => 'Name',
-        'help' => 'How you would like to be addressed.',
+        'label' => $t->text('contact.field.name.label'),
+        'help' => $t->text('contact.field.name.help'),
         'element' => 'input',
         'attributes' => ['type' => 'text', 'autocomplete' => 'name', 'autocapitalize' => 'words', 'maxlength' => 120],
     ],
     [
         'name' => 'email',
-        'label' => 'Email',
-        'help' => 'The address a reply would be written to.',
+        'label' => $t->text('contact.field.email.label'),
+        'help' => $t->text('contact.field.email.help'),
         'element' => 'input',
         'attributes' => [
             'type' => 'email',
@@ -79,15 +93,15 @@ $fields = [
     ],
     [
         'name' => 'subject',
-        'label' => 'Subject',
-        'help' => 'One line saying what the message is about.',
+        'label' => $t->text('contact.field.subject.label'),
+        'help' => $t->text('contact.field.subject.help'),
         'element' => 'input',
         'attributes' => ['type' => 'text', 'autocomplete' => 'off', 'maxlength' => 200],
     ],
     [
         'name' => 'message',
-        'label' => 'Message',
-        'help' => 'The message itself. Plain text — no formatting is interpreted.',
+        'label' => $t->text('contact.field.message.label'),
+        'help' => $t->text('contact.field.message.help'),
         'element' => 'textarea',
         'attributes' => ['rows' => 8, 'autocomplete' => 'off', 'maxlength' => 5000],
     ],
@@ -107,7 +121,7 @@ $formDescribedBy = $hasNotice ? 'contact-notice contact-status' : 'contact-statu
 ob_start();
 
 ?>
-<h1 class="text-3xl font-semibold tracking-tight">Contact</h1>
+<h1 class="text-3xl font-semibold tracking-tight"><?= $view->text($t->text('contact.title')) ?></h1>
 
 <?php
 /*
@@ -117,10 +131,7 @@ ob_start();
  * visitor infer a delivery that does not happen.
  */
 ?>
-<p id="contact-status" class="mt-4 max-w-prose facet-ink-muted">
-    What you write here is stored on this site, where I read it. Nothing is forwarded anywhere automatically,
-    so for anything urgent the links below are quicker.
-</p>
+<p id="contact-status" class="mt-4 max-w-prose facet-ink-muted"><?= $view->text($t->text('contact.standing')) ?></p>
 
 <?php if ($hasNotice): ?>
 <?php
@@ -149,7 +160,7 @@ ob_start();
 <form
     class="mt-8 max-w-md space-y-6 facet-form-panel"
     method="post"
-    action="<?= $view->url('/contact') ?>"
+    action="<?= $view->url($formAction) ?>"
     aria-describedby="<?= $view->attr($formDescribedBy) ?>"
 >
     <?php
@@ -239,7 +250,7 @@ ob_start();
      */
     ?>
     <div class="facet-nectar" aria-hidden="true">
-        <label for="contact-<?= $view->attr($honeypotField) ?>">Leave this field empty</label>
+        <label for="contact-<?= $view->attr($honeypotField) ?>"><?= $view->text($t->text('contact.honeypot.label')) ?></label>
         <input
             id="contact-<?= $view->attr($honeypotField) ?>"
             type="text"
@@ -251,13 +262,13 @@ ob_start();
     </div>
 
     <p>
-        <button class="rounded facet-button px-4 py-2" type="submit">Send message</button>
+        <button class="rounded facet-button px-4 py-2" type="submit"><?= $view->text($t->text('contact.submit')) ?></button>
     </p>
 </form>
 
 <?php if ($profileLinks !== []): ?>
 <section class="mt-16" aria-labelledby="other-ways">
-    <h2 id="other-ways" class="text-2xl font-semibold tracking-tight">Other ways to reach me</h2>
+    <h2 id="other-ways" class="text-2xl font-semibold tracking-tight"><?= $view->text($t->text('contact.otherWays')) ?></h2>
 
     <?php
     /*

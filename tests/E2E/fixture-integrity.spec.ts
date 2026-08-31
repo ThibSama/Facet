@@ -50,12 +50,12 @@ test.describe('fixture integrity', () => {
     // A mutation and an insert, both through the product rather than through
     // SQL: a reset that only undid what the fixture itself wrote would prove
     // nothing about a test that used the application.
-    await page.goto('/contact');
-    await page.getByLabel('Name').fill('Fixture Integrity');
-    await page.getByLabel('Email').fill('integrity@example.test');
-    await page.getByLabel('Subject').fill('Written to be undone');
-    await page.getByLabel('Message').fill('This row must not survive the reset.');
-    await page.getByRole('button', { name: 'Send message' }).click();
+    await page.goto('/fr/contact');
+    await page.getByLabel('Nom', { exact: true }).fill('Fixture Integrity');
+    await page.getByLabel('Adresse e-mail').fill('integrity@example.test');
+    await page.getByLabel('Objet').fill('Written to be undone');
+    await page.getByLabel('Message', { exact: true }).fill('This row must not survive the reset.');
+    await page.getByRole('button', { name: 'Envoyer le message' }).click();
     await expect(page.getByRole('status')).toBeVisible();
 
     await signIn(page, ADMIN.email, ADMIN.password, '/admin');

@@ -51,7 +51,7 @@ final class ProjectCatalogueTest extends TestCase
             'APP_LOCALE' => 'en',
         ]));
 
-        $response = $application->handle(Request::create('GET', '/projects'));
+        $response = $application->handle(Request::create('GET', '/fr/projects'));
 
         self::assertSame(200, $response->status());
 
@@ -76,7 +76,7 @@ final class ProjectCatalogueTest extends TestCase
 
     private static function href(Project $project): string
     {
-        return '/projects/' . $project->slug()->value();
+        return '/fr/projects/' . $project->slug()->value();
     }
 
     // ------------------------------------------------------- completeness
@@ -93,7 +93,7 @@ final class ProjectCatalogueTest extends TestCase
         self::assertNotSame([], $projects, 'The corpus must declare at least one project');
 
         $expected = array_map(self::href(...), $projects);
-        $rendered = Dom::attributes($xpath, '//main//a[starts-with(@href, "/projects/")]', 'href');
+        $rendered = Dom::attributes($xpath, '//main//a[starts-with(@href, "/fr/projects/")]', 'href');
 
         self::assertSame($expected, $rendered, 'The catalogue is the corpus, whole and in its own order');
         self::assertSame($rendered, array_values(array_unique($rendered)), 'No project may be listed twice');
@@ -201,7 +201,7 @@ final class ProjectCatalogueTest extends TestCase
             $period = $project->period();
 
             if ($project->status()->isSubstantiated()) {
-                self::assertStringContainsString($project->status()->value, $text);
+                self::assertStringContainsString(self::label('content.status.' . $project->status()->value), $text);
             } else {
                 $unsubstantiated++;
             }
@@ -383,4 +383,17 @@ final class ProjectCatalogueTest extends TestCase
         self::assertStringNotContainsString('absolute', $list->getAttribute('class'));
         self::assertCount(0, Dom::query($xpath, '//main//*[@width or @height]'), 'Nothing is pinned to a pixel size');
     }
+
+    /**
+     * A display name the shell writes for a canonical machine value.
+     *
+     * `in-progress`, `education` and `language` are stored vocabularies, not
+     * words: since PORT-137 the shell prints the translated label for each in
+     * the language of the page, so this is what a rendered page actually says.
+     */
+    private static function label(string $key): string
+    {
+        return (new \Facet\I18n\Translator(\Facet\I18n\Locale::Fr))->text($key);
+    }
+
 }

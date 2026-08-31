@@ -19,7 +19,9 @@ const NARROW = { width: 420, height: 900 };
 test.describe('progressive enhancement', () => {
   test('the served document offers a plain navigation and hides both controls', async ({ page }) => {
     // Read the markup the server actually sent, before any script has run.
-    const response = await page.request.get('/');
+    // A canonical localized URL rather than the entry route: `/` is a redirect
+    // and its body is deliberately empty.
+    const response = await page.request.get('/fr');
     const html = await response.text();
 
     expect(html).toContain('<button');
@@ -27,15 +29,18 @@ test.describe('progressive enhancement', () => {
     // is never presented.
     expect(html.match(/hidden\n/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
     // The navigation itself is complete and unconditional in that same markup.
-    for (const label of ['Home', 'Projects', 'About', 'Contact']) {
+    for (const label of ['Accueil', 'Projets', 'À propos', 'Contact']) {
       expect(html).toContain(`>${label}</a>`);
     }
+
+    // And so is the language switch, which ships with no `hidden` at all.
+    expect(html).toContain('data-facet-lang');
   });
 
   test('the theme control appears, switches the document, and is remembered', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/fr');
 
-    const toggle = page.getByRole('button', { name: 'Dark theme' });
+    const toggle = page.getByRole('button', { name: 'Thème sombre' });
     await expect(toggle).toBeVisible();
 
     await toggle.click();
@@ -47,18 +52,18 @@ test.describe('progressive enhancement', () => {
     // survives a fresh document rather than being re-derived from the system.
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect(page.getByRole('button', { name: 'Dark theme' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Thème sombre' })).toHaveAttribute('aria-pressed', 'true');
 
     // And it is reversible.
-    await page.getByRole('button', { name: 'Dark theme' }).click();
+    await page.getByRole('button', { name: 'Thème sombre' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   });
 
   test('the navigation collapses on a narrow viewport and is opened by its own button', async ({ page }) => {
     await page.setViewportSize(NARROW);
-    await page.goto('/');
+    await page.goto('/fr');
 
-    const navigation = page.getByRole('navigation', { name: 'Primary' });
+    const navigation = page.getByRole('navigation', { name: 'Navigation principale' });
     const toggle = page.getByRole('button', { name: 'Menu' });
 
     await expect(toggle).toBeVisible();
@@ -80,9 +85,9 @@ test.describe('progressive enhancement', () => {
 
   test('above the breakpoint the collapse is gone and the list is always shown', async ({ page }) => {
     await page.setViewportSize(NARROW);
-    await page.goto('/');
+    await page.goto('/fr');
 
-    const navigation = page.getByRole('navigation', { name: 'Primary' });
+    const navigation = page.getByRole('navigation', { name: 'Navigation principale' });
     await expect(navigation).toBeHidden();
 
     await page.setViewportSize({ width: 1280, height: 900 });
@@ -100,12 +105,12 @@ test.describe('progressive enhancement', () => {
 
   test('a narrow visitor can still reach every section through the collapse', async ({ page }) => {
     await page.setViewportSize(NARROW);
-    await page.goto('/');
+    await page.goto('/fr');
 
     await page.getByRole('button', { name: 'Menu' }).click();
-    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Contact', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Navigation principale' }).getByRole('link', { name: 'Contact', exact: true }).click();
 
-    await expect(page).toHaveURL('/contact');
+    await expect(page).toHaveURL('/fr/contact');
     await expect(page.getByRole('heading', { level: 1, name: 'Contact' })).toBeVisible();
   });
 });

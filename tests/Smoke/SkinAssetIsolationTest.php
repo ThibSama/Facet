@@ -354,7 +354,7 @@ final class SkinAssetIsolationTest extends TestCase
      */
     private static function render(Application $application, array $query = []): string
     {
-        $response = $application->handle(Request::create('GET', '/', $query));
+        $response = $application->handle(Request::create('GET', '/fr', $query));
 
         self::assertSame(200, $response->status(), 'Home must render successfully');
 
@@ -367,7 +367,7 @@ final class SkinAssetIsolationTest extends TestCase
     private static function renderThroughEntrypoint(string $environment = 'local', array $query = []): string
     {
         $command = sprintf(
-            'APP_NAME=Facet APP_ENV=%s APP_KEY=test-key QUERY_STRING=%s %s -d variables_order=EGPCS %s 2>&1',
+            'APP_NAME=Facet APP_ENV=%s APP_KEY=test-key REQUEST_URI=/fr QUERY_STRING=%s %s -d variables_order=EGPCS %s 2>&1',
             escapeshellarg($environment),
             escapeshellarg(http_build_query($query)),
             escapeshellarg(PHP_BINARY),

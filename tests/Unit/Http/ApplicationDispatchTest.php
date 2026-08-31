@@ -42,7 +42,7 @@ final class ApplicationDispatchTest extends TestCase
 
     public function testHomeRendersServerSideHtml(): void
     {
-        $response = self::app()->handle(Request::create('GET', '/'));
+        $response = self::app()->handle(Request::create('GET', '/fr'));
 
         self::assertSame(200, $response->status());
         self::assertSame('text/html; charset=utf-8', $response->header('Content-Type'));
@@ -56,12 +56,99 @@ final class ApplicationDispatchTest extends TestCase
 
         self::assertSame(404, $response->status());
         self::assertStringContainsString('<!doctype html>', $response->body());
-        self::assertStringContainsString('Page not found', $response->body());
+        self::assertStringContainsString('Page introuvable', $response->body());
+    }
+
+    /**
+     * The unprefixed URLs are entry points, not pages.
+     *
+     * They resolve a language and redirect to the canonical localized URL —
+     * temporarily, because the answer depends on a preference the visitor may
+     * change — so there is never a second indexable spelling of a page.
+     */
+    public function testAnUnprefixedPublicUrlRedirectsToItsLocalizedCounterpart(): void
+    {
+        foreach ([
+            '/' => '/fr',
+            '/projects' => '/fr/projects',
+            '/about' => '/fr/about',
+            '/contact' => '/fr/contact',
+            '/projects/kushim' => '/fr/projects/kushim',
+        ] as $entry => $expected) {
+            $response = self::app()->handle(Request::create('GET', $entry));
+
+            self::assertSame(302, $response->status(), $entry);
+            self::assertSame($expected, $response->header('Location'), $entry);
+            self::assertSame('', $response->body(), $entry);
+        }
+    }
+
+    public function testTheEntryRedirectHonoursThePreferenceThenTheBrowserThenFrench(): void
+    {
+        $remembered = self::app()->handle(
+            Request::create('GET', '/projects', [], [], ['facet_locale' => 'en'], ['accept-language' => 'fr'])
+        );
+        self::assertSame('/en/projects', $remembered->header('Location'));
+
+        $negotiated = self::app()->handle(
+            Request::create('GET', '/projects', [], [], [], ['accept-language' => 'en-GB,en;q=0.9,fr;q=0.5'])
+        );
+        self::assertSame('/en/projects', $negotiated->header('Location'));
+
+        $unsupported = self::app()->handle(
+            Request::create('GET', '/projects', [], [], [], ['accept-language' => 'de-DE'])
+        );
+        self::assertSame('/fr/projects', $unsupported->header('Location'));
+
+        $malformed = self::app()->handle(
+            Request::create('GET', '/projects', [], [], ['facet_locale' => 'zz'], ['accept-language' => '@@@'])
+        );
+        self::assertSame('/fr/projects', $malformed->header('Location'));
+    }
+
+    /**
+     * An explicit locale URL is the strongest statement there is, so it beats
+     * a remembered preference and the browser's header alike — and it replaces
+     * the preference, so the next unprefixed entry follows the visitor rather
+     * than sending them back.
+     */
+    public function testAnExplicitLocaleUrlOverridesAndReplacesThePreference(): void
+    {
+        $response = self::app()->handle(
+            Request::create('GET', '/en/about', [], [], ['facet_locale' => 'fr'], ['accept-language' => 'fr'])
+        );
+
+        self::assertSame(200, $response->status());
+        self::assertStringContainsString('<html lang="en"', $response->body());
+        self::assertStringContainsString('facet_locale=en;', (string) $response->header('Set-Cookie'));
+        self::assertStringContainsString('HttpOnly', (string) $response->header('Set-Cookie'));
+        self::assertStringContainsString('SameSite=Lax', (string) $response->header('Set-Cookie'));
+        self::assertStringContainsString('Secure', (string) $response->header('Set-Cookie'));
+
+        // Nothing to write when the preference already says what the URL does.
+        $again = self::app()->handle(
+            Request::create('GET', '/en/about', [], [], ['facet_locale' => 'en'])
+        );
+        self::assertNull($again->header('Set-Cookie'));
+    }
+
+    /**
+     * A language the site does not serve is a routing miss. It is never
+     * repaired into French under a German-looking URL, because that would make
+     * `/de/about` an indexable page claiming to be German.
+     */
+    public function testAnUnsupportedLanguagePrefixIsNotFound(): void
+    {
+        foreach (['/de', '/de/projects', '/es/about', '/FR', '/fr-FR'] as $path) {
+            $response = self::app()->handle(Request::create('GET', $path));
+
+            self::assertSame(404, $response->status(), $path);
+        }
     }
 
     public function testAnUnsupportedMethodOnAKnownPathIsA405WithAnAllowHeader(): void
     {
-        $response = self::app()->handle(Request::create('POST', '/'));
+        $response = self::app()->handle(Request::create('POST', '/fr'));
 
         self::assertSame(405, $response->status());
         self::assertSame('GET', $response->header('Allow'));
@@ -70,7 +157,7 @@ final class ApplicationDispatchTest extends TestCase
 
     public function testAMethodOutsideTheContractOnAKnownPathIsAlso405(): void
     {
-        $response = self::app()->handle(Request::create('PUT', '/contact'));
+        $response = self::app()->handle(Request::create('PUT', '/fr/contact'));
 
         self::assertSame(405, $response->status());
         self::assertSame('GET, POST', $response->header('Allow'));
@@ -79,7 +166,7 @@ final class ApplicationDispatchTest extends TestCase
     public function testAValidProjectSlugRendersThatProject(): void
     {
         $project = CorpusLoader::default(self::root())->load()->projects()[0];
-        $response = self::app()->handle(Request::create('GET', '/projects/' . $project->slug()));
+        $response = self::app()->handle(Request::create('GET', '/fr/projects/' . $project->slug()));
 
         self::assertSame(200, $response->status());
         self::assertStringContainsString(
@@ -90,14 +177,14 @@ final class ApplicationDispatchTest extends TestCase
 
     public function testAnUnknownProjectSlugIsA404(): void
     {
-        $response = self::app()->handle(Request::create('GET', '/projects/definitely-not-a-project'));
+        $response = self::app()->handle(Request::create('GET', '/fr/projects/definitely-not-a-project'));
 
         self::assertSame(404, $response->status());
     }
 
     public function testAMalformedProjectSlugIsRejectedBeforeAnyLookup(): void
     {
-        foreach (['/projects/Kushim', '/projects/ku--shim', '/projects/a', '/projects/kushim-'] as $path) {
+        foreach (['/fr/projects/Kushim', '/fr/projects/ku--shim', '/fr/projects/a', '/fr/projects/kushim-'] as $path) {
             $response = self::app()->handle(Request::create('GET', $path));
 
             self::assertSame(404, $response->status(), $path . ' must be refused');
@@ -112,8 +199,8 @@ final class ApplicationDispatchTest extends TestCase
      */
     public function testGetAndPostOnTheSamePathTakeDifferentBranches(): void
     {
-        $get = self::app()->handle(Request::create('GET', '/contact'));
-        $post = self::app()->handle(Request::create('POST', '/contact', [], ['message' => 'hi']));
+        $get = self::app()->handle(Request::create('GET', '/fr/contact'));
+        $post = self::app()->handle(Request::create('POST', '/fr/contact', [], ['message' => 'hi']));
 
         self::assertSame(200, $get->status());
         self::assertStringContainsString('method="post"', $get->body());
@@ -123,19 +210,19 @@ final class ApplicationDispatchTest extends TestCase
 
     public function testANonCanonicalPathRedirectsInsteadOfRenderingTwice(): void
     {
-        $response = self::app()->handle(Request::create('GET', '/projects/'));
+        $response = self::app()->handle(Request::create('GET', '/fr/projects/'));
 
         self::assertSame(301, $response->status());
-        self::assertSame('/projects', $response->header('Location'));
+        self::assertSame('/fr/projects', $response->header('Location'));
         self::assertSame('', $response->body());
     }
 
     public function testARedirectPreservesTheQueryString(): void
     {
-        $response = self::app()->handle(Request::create('GET', '/projects/', ['page' => '2']));
+        $response = self::app()->handle(Request::create('GET', '/fr/projects/', ['page' => '2']));
 
         self::assertSame(301, $response->status());
-        self::assertSame('/projects?page=2', $response->header('Location'));
+        self::assertSame('/fr/projects?page=2', $response->header('Location'));
     }
 
     /**
@@ -144,12 +231,12 @@ final class ApplicationDispatchTest extends TestCase
     public static function canonicalDispatchCases(): array
     {
         return [
-            'encoded separator' => ['/projects/a%2Fb', [], 404, null],
-            'trailing slash' => ['/projects/', [], 301, '/projects'],
-            'repeated slash with query' => ['/projects//', ['page' => '2'], 301, '/projects?page=2'],
-            'encoded valid slug' => ['/projects/ku%73him', [], 301, '/projects/kushim'],
-            'already canonical' => ['/projects/kushim', [], 200, null],
-            'encoded null' => ['/projects/kushim%00', [], 404, null],
+            'encoded separator' => ['/fr/projects/a%2Fb', [], 404, null],
+            'trailing slash' => ['/fr/projects/', [], 301, '/fr/projects'],
+            'repeated slash with query' => ['/fr/projects//', ['page' => '2'], 301, '/fr/projects?page=2'],
+            'encoded valid slug' => ['/fr/projects/ku%73him', [], 301, '/fr/projects/kushim'],
+            'already canonical' => ['/fr/projects/kushim', [], 200, null],
+            'encoded null' => ['/fr/projects/kushim%00', [], 404, null],
         ];
     }
 
@@ -178,8 +265,22 @@ final class ApplicationDispatchTest extends TestCase
                 continue;
             }
 
-            $path = $route->toPath($route->isDynamic() ? ['slug' => 'kushim'] : []);
+            $values = [];
+
+            foreach ($route->parameters() as $parameter) {
+                $values[$parameter->name()] = $parameter->name() === 'locale' ? 'en' : 'kushim';
+            }
+
+            $path = $route->toPath($values);
             $response = self::app()->handle(Request::create('GET', $path));
+
+            // An entry route answers 302 by design: it is where a language is
+            // chosen, not where a page is served.
+            if (RouteCatalog::isEntry($route->name())) {
+                self::assertSame(302, $response->status(), $route->name());
+
+                continue;
+            }
 
             self::assertContains(
                 $response->status(),
@@ -201,7 +302,7 @@ final class ApplicationDispatchTest extends TestCase
     public function testTheSkinOverrideStillWorksThroughTheRequestObject(): void
     {
         $response = self::app('local')->handle(
-            Request::create('GET', '/', ['skin' => 'evolving-interface'])
+            Request::create('GET', '/fr', ['skin' => 'evolving-interface'])
         );
 
         self::assertSame(200, $response->status());
@@ -211,7 +312,7 @@ final class ApplicationDispatchTest extends TestCase
     public function testHandlingIsFreeOfOutputSideEffects(): void
     {
         $before = ob_get_level();
-        $response = self::app()->handle(Request::create('GET', '/'));
+        $response = self::app()->handle(Request::create('GET', '/fr'));
 
         self::assertSame($before, ob_get_level(), 'Dispatch must leave the output buffer stack untouched');
         self::assertNotSame('', $response->body());

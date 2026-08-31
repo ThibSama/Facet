@@ -93,7 +93,7 @@ final class ContactSubmissionTest extends TestCase
 
     private function get(): Response
     {
-        return $this->app->handle(Request::create('GET', '/contact'));
+        return $this->app->handle(Request::create('GET', '/fr/contact'));
     }
 
     /**
@@ -101,7 +101,7 @@ final class ContactSubmissionTest extends TestCase
      */
     private function post(array $body): Response
     {
-        return $this->app->handle(Request::create('POST', '/contact', [], $body));
+        return $this->app->handle(Request::create('POST', '/fr/contact', [], $body));
     }
 
     /**
@@ -275,7 +275,7 @@ final class ContactSubmissionTest extends TestCase
     {
         $fresh = self::boot(new ArraySession(), $this->store, $this->clock);
 
-        $response = $fresh->handle(Request::create('POST', '/contact', [], [
+        $response = $fresh->handle(Request::create('POST', '/fr/contact', [], [
             CsrfGuard::FIELD => str_repeat('a', 64),
         ] + self::VALID));
 
@@ -489,7 +489,7 @@ final class ContactSubmissionTest extends TestCase
         // whose own label says what to do with it.
         $label = Dom::element($xpath, sprintf('//main//form//label[@for="%s"]', $decoy->getAttribute('id')));
 
-        self::assertStringContainsStringIgnoringCase('empty', Dom::textOf($label));
+        self::assertStringContainsStringIgnoringCase('vide', Dom::textOf($label));
 
         // And the real fields are untouched by its presence.
         self::assertSame(
@@ -524,7 +524,7 @@ final class ContactSubmissionTest extends TestCase
 
         // And the page it lands on says the same thing, so the difference is
         // not visible one step later either.
-        self::assertStringContainsString('has been received', $this->get()->body());
+        self::assertStringContainsString('a été reçu', $this->get()->body());
     }
 
     /**
@@ -604,7 +604,7 @@ final class ContactSubmissionTest extends TestCase
         $response = $this->post($this->validBody());
 
         self::assertSame(Response::STATUS_SEE_OTHER, $response->status(), '303, so the redirected request is a GET');
-        self::assertSame('/contact', $response->header('Location'));
+        self::assertSame('/fr/contact', $response->header('Location'));
         self::assertSame('', $response->body());
         self::assertSame(1, $this->store->count());
 
@@ -614,7 +614,7 @@ final class ContactSubmissionTest extends TestCase
 
         $notice = Dom::element(Dom::of(Dom::withoutScripts($landing->body())), '//main//*[@id="contact-notice"]');
 
-        self::assertStringContainsString('has been received', Dom::textOf($notice));
+        self::assertStringContainsString('a été reçu', Dom::textOf($notice));
         self::assertSame('status', $notice->getAttribute('role'), 'The confirmation must be announced');
     }
 
@@ -633,8 +633,8 @@ final class ContactSubmissionTest extends TestCase
 
         $text = mb_strtolower(Dom::textOf(Dom::element(Dom::of(Dom::withoutScripts($this->get()->body())), '//main')));
 
-        self::assertStringContainsString('received', $text);
-        self::assertStringContainsString('stored', $text);
+        self::assertStringContainsString('reçu', $text);
+        self::assertStringContainsString('enregistré', $text);
 
         foreach ([
             'will reach me',
@@ -660,13 +660,13 @@ final class ContactSubmissionTest extends TestCase
     {
         $this->post($this->validBody());
 
-        self::assertStringContainsString('has been received', $this->get()->body());
+        self::assertStringContainsString('a été reçu', $this->get()->body());
 
         for ($i = 0; $i < 5; $i++) {
             $refresh = $this->get();
 
             self::assertSame(200, $refresh->status());
-            self::assertStringNotContainsString('has been received', $refresh->body(), 'Refresh ' . $i);
+            self::assertStringNotContainsString('a été reçu', $refresh->body(), 'Refresh ' . $i);
         }
 
         self::assertSame(1, $this->store->count(), 'No refresh may add a row');
@@ -687,16 +687,16 @@ final class ContactSubmissionTest extends TestCase
         ] as $query) {
             $response = $this->app->handle(Request::create(
                 'GET',
-                '/contact?' . http_build_query($query),
+                '/fr/contact?' . http_build_query($query),
                 $query
             ));
 
             self::assertSame(200, $response->status());
-            self::assertStringNotContainsString('has been received', $response->body(), (string) key($query));
+            self::assertStringNotContainsString('a été reçu', $response->body(), (string) key($query));
         }
 
         // And a genuine success does not put one there either.
-        self::assertSame('/contact', $this->post($this->validBody())->header('Location'));
+        self::assertSame('/fr/contact', $this->post($this->validBody())->header('Location'));
         self::assertSame(0, substr_count((string) $this->post($this->validBody())->header('Location'), '?'));
     }
 
@@ -713,10 +713,10 @@ final class ContactSubmissionTest extends TestCase
         $session = new ArraySession();
         $app = self::boot($session, $store, $this->clock);
 
-        $page = $app->handle(Request::create('GET', '/contact'));
+        $page = $app->handle(Request::create('GET', '/fr/contact'));
         $token = $this->tokenFromPage($page);
 
-        $response = $app->handle(Request::create('POST', '/contact', [], [CsrfGuard::FIELD => $token] + self::VALID));
+        $response = $app->handle(Request::create('POST', '/fr/contact', [], [CsrfGuard::FIELD => $token] + self::VALID));
 
         self::assertSame(Response::STATUS_INTERNAL_SERVER_ERROR, $response->status());
         self::assertSame(0, $store->count(), 'Nothing partial may be left behind');
@@ -725,8 +725,8 @@ final class ContactSubmissionTest extends TestCase
         $xpath = Dom::of(Dom::withoutScripts($response->body()));
         $notice = Dom::textOf(Dom::element($xpath, '//main//*[@id="contact-notice"]'));
 
-        self::assertStringContainsString('not been received', $notice, 'The visitor is told the truth');
-        self::assertStringNotContainsString('has been received', $response->body());
+        self::assertStringContainsString("n'a donc pas été reçu", $notice, 'The visitor is told the truth');
+        self::assertStringNotContainsString('a été reçu', $response->body());
 
         // What they wrote is still on the page, so it is not lost.
         self::assertSame(
@@ -750,8 +750,8 @@ final class ContactSubmissionTest extends TestCase
         // No flash was set: the next GET is an ordinary form, not a stale
         // confirmation.
         self::assertStringNotContainsString(
-            'has been received',
-            $app->handle(Request::create('GET', '/contact'))->body()
+            'a été reçu',
+            $app->handle(Request::create('GET', '/fr/contact'))->body()
         );
     }
 
@@ -777,12 +777,12 @@ final class ContactSubmissionTest extends TestCase
             $session
         );
 
-        $token = $this->tokenFromPage($app->handle(Request::create('GET', '/contact')));
+        $token = $this->tokenFromPage($app->handle(Request::create('GET', '/fr/contact')));
 
-        $response = $app->handle(Request::create('POST', '/contact', [], [CsrfGuard::FIELD => $token] + self::VALID));
+        $response = $app->handle(Request::create('POST', '/fr/contact', [], [CsrfGuard::FIELD => $token] + self::VALID));
 
         self::assertSame(Response::STATUS_INTERNAL_SERVER_ERROR, $response->status());
         self::assertStringNotContainsString('DB_DSN', $response->body());
-        self::assertStringNotContainsString('has been received', $response->body());
+        self::assertStringNotContainsString('a été reçu', $response->body());
     }
 }

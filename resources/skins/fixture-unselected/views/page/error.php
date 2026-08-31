@@ -12,14 +12,14 @@
  * @var int                        $status
  * @var string                     $title
  * @var string                     $message
- * @var string                     $locale
+ * @var \Facet\I18n\Locale        $locale
  */
 
 declare(strict_types=1);
 
 ?>
 <!doctype html>
-<html lang="<?= $view->attr($locale) ?>" data-skin="<?= $view->attr($skin->id()) ?>">
+<html lang="<?= $view->attr($locale->htmlLang()) ?>" data-skin="<?= $view->attr($skin->id()) ?>">
 <head>
     <meta charset="utf-8">
     <title><?= $view->text($title) ?></title>

@@ -24,9 +24,9 @@ const projects: CorpusProject[] = (
 
 test.describe('projects', () => {
   test('the index lists every documented project, each linking to its case study', async ({ page }) => {
-    await page.goto('/projects');
+    await page.goto('/fr/projects');
 
-    await expect(page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Projets' })).toBeVisible();
 
     expect(projects.length).toBeGreaterThan(0);
 
@@ -34,7 +34,7 @@ test.describe('projects', () => {
       const link = page.getByRole('link', { name: project.name, exact: true });
 
       await expect(link).toBeVisible();
-      await expect(link).toHaveAttribute('href', `/projects/${project.slug}`);
+      await expect(link).toHaveAttribute('href', `/fr/projects/${project.slug}`);
     }
 
     // Each project is announced once, as its own region, rather than as a
@@ -45,23 +45,25 @@ test.describe('projects', () => {
   test('a project reached from the index shows its own case study', async ({ page }) => {
     const first = projects[0];
 
-    await page.goto('/projects');
+    await page.goto('/fr/projects');
     await page.getByRole('link', { name: first.name, exact: true }).click();
 
-    await expect(page).toHaveURL(`/projects/${first.slug}`);
+    await expect(page).toHaveURL(`/fr/projects/${first.slug}`);
     await expect(page.getByRole('heading', { level: 1, name: first.name })).toBeVisible();
     await expect(page.getByRole('main')).toContainText(first.summary);
 
     // Projects stays the current section on a detail URL: the navigation model
     // decides that once, and every page inherits it.
     await expect(
-      page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Projects', exact: true }),
+      page
+        .getByRole('navigation', { name: 'Navigation principale' })
+        .getByRole('link', { name: 'Projets', exact: true }),
     ).toHaveAttribute('aria-current', 'page');
   });
 
   test('every case study is reachable directly by its canonical URL', async ({ page }) => {
     for (const project of projects) {
-      const response = await page.goto(`/projects/${project.slug}`);
+      const response = await page.goto(`/fr/projects/${project.slug}`);
 
       expect(response?.status(), `GET /projects/${project.slug}`).toBe(200);
       await expect(page.getByRole('heading', { level: 1, name: project.name })).toBeVisible();
@@ -69,16 +71,16 @@ test.describe('projects', () => {
   });
 
   test('an undocumented slug is a 404 rather than an empty case study', async ({ page }) => {
-    const response = await page.goto('/projects/no-such-project');
+    const response = await page.goto('/fr/projects/no-such-project');
 
     expect(response?.status()).toBe(404);
-    await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Page introuvable' })).toBeVisible();
   });
 
   test('a malformed slug is refused rather than repaired', async ({ page }) => {
-    const response = await page.goto('/projects/Not%20A%20Slug');
+    const response = await page.goto('/fr/projects/Not%20A%20Slug');
 
     expect(response?.status()).toBe(404);
-    await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Page introuvable' })).toBeVisible();
   });
 });

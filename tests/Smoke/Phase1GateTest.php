@@ -205,7 +205,7 @@ final class Phase1GateTest extends TestCase
      */
     public function testThePublicSurfaceAnswersItsDeclaredStatuses(): void
     {
-        foreach (['/', '/projects', '/projects/kushim', '/about', '/contact'] as $path) {
+        foreach (['/fr', '/fr/projects', '/fr/projects/kushim', '/fr/about', '/fr/contact'] as $path) {
             $response = self::get($path);
 
             self::assertSame(200, $response['status'], $path);
@@ -220,14 +220,14 @@ final class Phase1GateTest extends TestCase
 
         $notFound = self::get('/definitely-not-a-page');
         self::assertSame(404, $notFound['status']);
-        self::assertStringContainsString('Page not found', $notFound['body']);
+        self::assertStringContainsString('Page introuvable', $notFound['body']);
 
-        $unknownProject = self::get('/projects/no-such-project');
+        $unknownProject = self::get('/fr/projects/no-such-project');
         self::assertSame(404, $unknownProject['status']);
 
-        $redirect = self::get('/projects/');
+        $redirect = self::get('/fr/projects/');
         self::assertSame(301, $redirect['status']);
-        self::assertSame('/projects', self::headerValue('Location', ...$redirect['headers']));
+        self::assertSame('/fr/projects', self::headerValue('Location', ...$redirect['headers']));
     }
 
     /**
@@ -236,7 +236,7 @@ final class Phase1GateTest extends TestCase
      */
     public function testProductionDisclosesNothingOnAnyStatus(): void
     {
-        foreach (['/', '/projects', '/projects/kushim', '/about', '/contact', '/nope', '/projects/no-such-project'] as $path) {
+        foreach (['/fr', '/fr/projects', '/fr/projects/kushim', '/fr/about', '/fr/contact', '/nope', '/fr/projects/no-such-project'] as $path) {
             $body = self::get($path)['body'];
 
             foreach ([self::root(), 'phase1-gate-key', 'Fatal error', 'Warning:', 'Stack trace', 'Exception'] as $forbidden) {
@@ -264,7 +264,7 @@ final class Phase1GateTest extends TestCase
             $manifest->styles('resources/skins/evolving-interface/skin.ts')
         ));
 
-        foreach (['/', '/projects', '/projects/kushim', '/about', '/contact', '/nope'] as $path) {
+        foreach (['/fr', '/fr/projects', '/fr/projects/kushim', '/fr/about', '/fr/contact', '/nope'] as $path) {
             $body = self::get($path)['body'];
 
             // No dev server, no HMR client, no source module.
@@ -310,7 +310,7 @@ final class Phase1GateTest extends TestCase
      */
     public function testMalformedPathsAreRoutedNotResolvedOnDisk(): void
     {
-        foreach (['/projects/kushim%00', '/%00', '/projects/kushim%00.js'] as $path) {
+        foreach (['/fr/projects/kushim%00', '/%00', '/fr/projects/kushim%00.js'] as $path) {
             $response = self::get($path);
 
             self::assertSame(404, $response['status'], $path . ' must be a deterministic 404');
@@ -318,12 +318,12 @@ final class Phase1GateTest extends TestCase
 
         // An encoded slash is a slug that does not exist, not a redirect back
         // to itself.
-        $encodedSlash = self::get('/projects/a%2Fb');
+        $encodedSlash = self::get('/fr/projects/a%2Fb');
         self::assertSame(404, $encodedSlash['status']);
         self::assertNull(self::headerValue('Location', ...$encodedSlash['headers']));
 
         // A route the passthrough must keep its hands off entirely.
-        self::assertSame(200, self::get('/projects/kushim')['status']);
+        self::assertSame(200, self::get('/fr/projects/kushim')['status']);
 
         // A real build artefact still comes off disk, with a body.
         $asset = self::manifest()->script('resources/js/app.ts');
@@ -348,7 +348,7 @@ final class Phase1GateTest extends TestCase
         }
 
         // Whatever the status, production still discloses nothing.
-        foreach (['/projects/kushim%00', '/projects/a%2Fb', '/..%2fcomposer.json', '/index.php'] as $path) {
+        foreach (['/fr/projects/kushim%00', '/fr/projects/a%2Fb', '/..%2fcomposer.json', '/index.php'] as $path) {
             $body = self::get($path)['body'];
 
             foreach ([self::root(), 'phase1-gate-key', 'Fatal error', 'Warning:', 'Stack trace', 'ValueError'] as $forbidden) {
@@ -363,7 +363,7 @@ final class Phase1GateTest extends TestCase
      */
     public function testTheShellRemainsUsableWithoutJavaScript(): void
     {
-        foreach (['/', '/projects', '/projects/kushim', '/about', '/contact', '/nope'] as $path) {
+        foreach (['/fr', '/fr/projects', '/fr/projects/kushim', '/fr/about', '/fr/contact', '/nope'] as $path) {
             $body = self::get($path)['body'];
 
             $noJs = preg_replace('#<script\b[^>]*>.*?</script>#si', '', $body);
@@ -383,8 +383,21 @@ final class Phase1GateTest extends TestCase
             self::assertSame(1, self::query($xpath, '//header')->length, $path);
             self::assertSame(1, self::query($xpath, '//main[@id="main"]')->length, $path);
             self::assertSame(1, self::query($xpath, '//footer')->length, $path);
-            self::assertSame(1, self::query($xpath, '//header//nav[@aria-label="Primary"]')->length, $path);
-            self::assertSame(4, self::query($xpath, '//header//nav//a[@href]')->length, $path);
+            self::assertSame(
+                1,
+                self::query($xpath, '//header//nav[@aria-label="Navigation principale"]')->length,
+                $path
+            );
+            self::assertSame(4, self::query($xpath, '//header//nav[@data-facet-nav]//a[@href]')->length, $path);
+
+            // The language switch is part of the same no-JavaScript contract:
+            // two links, always present, never hidden.
+            self::assertSame(
+                1,
+                self::query($xpath, '//header//nav[@aria-label="Langue"]')->length,
+                $path
+            );
+            self::assertSame(2, self::query($xpath, '//header//nav[@data-facet-lang]//a[@href]')->length, $path);
             self::assertGreaterThan(0, self::query($xpath, '//main//h1')->length, $path);
 
             // Every navigation target is a real URL this server answers, not a

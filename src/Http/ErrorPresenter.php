@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Facet\Http;
 
+use Facet\I18n\Locale;
+use Facet\I18n\LocalizedRoutes;
+use Facet\I18n\Translations;
+use Facet\Routing\RouteCatalog;
 use Facet\Skin\SkinDefinition;
 use Facet\Skin\SkinRenderer;
 use Throwable;
@@ -32,39 +36,33 @@ final class ErrorPresenter
     public const VIEW = 'page.error';
 
     /**
-     * Public, status-derived text. No entry here can reveal anything about the
-     * failure that produced it, which is exactly the property we want.
+     * The statuses that have public text of their own. Anything else is
+     * reported as a 500, which is the honest answer for a failure this class
+     * has no wording for.
      *
-     * @var array<int, array{title: string, message: string}>
+     * @var list<int>
      */
-    private const PUBLIC_TEXT = [
-        400 => [
-            'title' => 'Bad request',
-            'message' => 'The request could not be understood.',
+    private const STATUSES = [400, 403, 404, 405, 422, 500, 501];
+
+    /**
+     * The wording of last resort, if the catalog itself is what broke.
+     *
+     * This class's second rule is that error rendering cannot fail, and since
+     * PORT-137 the wording comes from {@see Translations} — one more moving
+     * part. It is read directly and without the {@see \Facet\I18n\Translator},
+     * so a missing key degrades to these two sentences rather than raising a
+     * second exception while reporting the first.
+     *
+     * @var array<string, array{title: string, message: string}>
+     */
+    private const LAST_RESORT = [
+        'fr' => [
+            'title' => 'Erreur',
+            'message' => "La page n'a pas pu être affichée.",
         ],
-        403 => [
-            'title' => 'Not available',
-            'message' => 'This page is not available.',
-        ],
-        404 => [
-            'title' => 'Page not found',
-            'message' => 'This page does not exist.',
-        ],
-        405 => [
-            'title' => 'Method not allowed',
-            'message' => 'This page does not accept that kind of request.',
-        ],
-        422 => [
-            'title' => 'Invalid values',
-            'message' => 'One or more submitted values are invalid.',
-        ],
-        501 => [
-            'title' => 'Not available yet',
-            'message' => 'This page is not available yet.',
-        ],
-        500 => [
-            'title' => 'Something went wrong',
-            'message' => 'The page could not be displayed. Please try again later.',
+        'en' => [
+            'title' => 'Error',
+            'message' => 'The page could not be displayed.',
         ],
     ];
 
@@ -94,16 +92,19 @@ final class ErrorPresenter
         int $status,
         ?SkinDefinition $skin = null,
         array $shared = [],
-        ?Request $request = null
+        ?Request $request = null,
+        ?Locale $locale = null
     ): Response {
-        $status = isset(self::PUBLIC_TEXT[$status]) ? $status : Response::STATUS_INTERNAL_SERVER_ERROR;
-        $text = self::PUBLIC_TEXT[$status];
+        $locale ??= Locale::default();
+        $status = in_array($status, self::STATUSES, true) ? $status : Response::STATUS_INTERNAL_SERVER_ERROR;
+        $text = self::publicText($status, $locale);
 
         $headers = ($error instanceof HttpException ? $error->headers() : []) + [
             'X-Robots-Tag' => 'noindex, nofollow',
         ];
 
         $data = $shared + [
+            'locale' => $locale,
             'status' => $status,
             'title' => $text['title'],
             'message' => $text['message'],
@@ -111,17 +112,22 @@ final class ErrorPresenter
             'diagnostics' => $this->debug ? $this->diagnostics($error, $request) : [],
         ];
 
-        return Response::html($this->render($skin, $data, $status, $text), $status, $headers);
+        return Response::html($this->render($skin, $data, $status, $text, $locale), $status, $headers);
     }
 
     /**
      * @param array<string, mixed>                 $data
      * @param array{title: string, message: string} $text
      */
-    private function render(?SkinDefinition $skin, array $data, int $status, array $text): string
-    {
+    private function render(
+        ?SkinDefinition $skin,
+        array $data,
+        int $status,
+        array $text,
+        Locale $locale
+    ): string {
         if ($skin === null || !$this->renderer->supports($skin, self::VIEW)) {
-            return self::fallbackDocument($status, $text, self::stringList($data['diagnostics'] ?? []));
+            return self::fallbackDocument($status, $text, self::stringList($data['diagnostics'] ?? []), $locale);
         }
 
         try {
@@ -129,7 +135,7 @@ final class ErrorPresenter
         } catch (Throwable) {
             // A broken error template must never become the error being
             // reported. Degrade to markup that has no moving parts at all.
-            return self::fallbackDocument($status, $text, self::stringList($data['diagnostics'] ?? []));
+            return self::fallbackDocument($status, $text, self::stringList($data['diagnostics'] ?? []), $locale);
         }
     }
 
@@ -183,8 +189,14 @@ final class ErrorPresenter
      * @param array{title: string, message: string} $text
      * @param list<string>                          $diagnostics
      */
-    public static function fallbackDocument(int $status, array $text, array $diagnostics = []): string
-    {
+    public static function fallbackDocument(
+        int $status,
+        array $text,
+        array $diagnostics = [],
+        ?Locale $locale = null
+    ): string {
+        $locale ??= Locale::default();
+
         $escape = static fn (string $value): string => htmlspecialchars(
             $value,
             ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
@@ -198,27 +210,49 @@ final class ErrorPresenter
         }
 
         if ($details !== '') {
-            $details = '<h2>Diagnostics</h2><ul>' . $details . '</ul>';
+            $details = '<h2>' . $escape(self::lookup('error.diagnostics.title', $locale)) . '</h2><ul>'
+                . $details . '</ul>';
         }
 
         return '<!doctype html>' . "\n"
-            . '<html lang="en"><head><meta charset="utf-8">'
+            . '<html lang="' . $escape($locale->htmlLang()) . '"><head><meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width, initial-scale=1">'
             . '<meta name="robots" content="noindex, nofollow">'
             . '<title>' . $escape($text['title']) . '</title></head>'
             . '<body><main><h1>' . $escape($text['title']) . '</h1>'
             . '<p>' . $escape($text['message']) . '</p>'
-            . '<p><a href="/">Back to the home page</a></p>'
+            . '<p><a href="' . $escape(LocalizedRoutes::path(RouteCatalog::HOME, $locale)) . '">'
+            . $escape(self::lookup('error.backHome', $locale)) . '</a></p>'
             . $details
             . '</main></body></html>' . "\n";
     }
 
     /**
+     * The public text of a status, in one language.
+     *
      * @return array{title: string, message: string}
      */
-    public static function publicText(int $status): array
+    public static function publicText(int $status, ?Locale $locale = null): array
     {
-        return self::PUBLIC_TEXT[$status] ?? self::PUBLIC_TEXT[Response::STATUS_INTERNAL_SERVER_ERROR];
+        $locale ??= Locale::default();
+        $status = in_array($status, self::STATUSES, true) ? $status : Response::STATUS_INTERNAL_SERVER_ERROR;
+
+        $title = self::lookup('error.' . $status . '.title', $locale);
+        $message = self::lookup('error.' . $status . '.message', $locale);
+
+        return $title === '' || $message === ''
+            ? self::LAST_RESORT[$locale->value]
+            : ['title' => $title, 'message' => $message];
+    }
+
+    /**
+     * A catalog entry, read without the translator so nothing here can throw.
+     */
+    private static function lookup(string $key, Locale $locale): string
+    {
+        $entry = Translations::all()[$key] ?? null;
+
+        return is_array($entry) && isset($entry[$locale->value]) ? $entry[$locale->value] : '';
     }
 
     /**

@@ -96,7 +96,7 @@ final class ThemeShellTest extends TestCase
         return $raw;
     }
 
-    private static function html(string $path = '/'): string
+    private static function html(string $path = '/fr'): string
     {
         $response = Application::boot(self::root(), Config::fromArray([
             'APP_NAME' => 'Facet',
@@ -274,9 +274,17 @@ final class ThemeShellTest extends TestCase
             'APP_NAME' => 'Facet',
             'APP_ENV' => 'production',
             'APP_KEY' => 'test-key',
-        ]))->handle(Request::create('GET', '/'));
+        ]))->handle(Request::create('GET', '/fr'));
 
-        self::assertNull($response->header('Set-Cookie'));
+        // The one cookie a public page may set is the language preference, and
+        // it says nothing about a theme: theme and locale are independent
+        // preferences kept in independent places, which is why switching one
+        // can never move the other.
+        $cookie = (string) $response->header('Set-Cookie');
+
+        self::assertStringStartsWith('facet_locale=', $cookie);
+        self::assertStringNotContainsString(self::STORAGE_KEY, $cookie);
+        self::assertStringNotContainsString('theme', $cookie);
 
         // The control is a touch target, not a hover affordance.
         self::assertStringContainsString('min-height: 2.75rem', self::css());
@@ -314,10 +322,171 @@ final class ThemeShellTest extends TestCase
 
     /**
      * The failure injection the criterion asks for, actually executed: a
-     * `localStorage` whose getter throws must leave the document untouched
-     * rather than aborting the script.
+     * `localStorage` whose getter throws must not abort the script — the
+     * visitor still gets a theme, decided by the clock alone.
      */
     public function testThePrePaintBootstrapSurvivesAStorageFailure(): void
+    {
+        // Every case runs at 09:00, so the only variable is the storage.
+        $cases = [
+            'throwing' => ['get localStorage() { throw new Error("SecurityError"); }', 'light'],
+            'empty' => ['get localStorage() { return { getItem() { return null; } }; }', 'light'],
+            'hostile' => ['get localStorage() { return { getItem() { return "<script>"; } }; }', 'light'],
+            'stored-dark' => ['get localStorage() { return { getItem() { return "dark"; } }; }', 'dark'],
+        ];
+
+        foreach ($cases as $name => [$storage, $expected]) {
+            self::assertSame($expected, self::bootstrapResult($storage, 9), $name);
+        }
+    }
+
+    /**
+     * PORT-138: with nothing stored, the hour on the visitor's own clock picks
+     * the theme — 07:00 inclusive to 20:00 exclusive is day, and the rest of
+     * the twenty-four is night.
+     *
+     * The boundaries are the whole rule, so the boundaries are what is
+     * asserted, and none of it depends on when the suite happens to run: the
+     * bootstrap is executed against a stubbed clock, one hour at a time.
+     */
+    public function testTheClockPicksTheThemeWhenNothingIsStored(): void
+    {
+        $empty = 'get localStorage() { return { getItem() { return null; } }; }';
+
+        $hours = [
+            0 => 'dark',
+            5 => 'dark',
+            // 06:59 — still night, because the day starts on the hour.
+            6 => 'dark',
+            7 => 'light',
+            12 => 'light',
+            // 19:59 — the last minute of the day half.
+            19 => 'light',
+            20 => 'dark',
+            23 => 'dark',
+        ];
+
+        foreach ($hours as $hour => $expected) {
+            self::assertSame(
+                $expected,
+                self::bootstrapResult($empty, $hour),
+                sprintf('%02d:00 must open in %s', $hour, $expected)
+            );
+        }
+
+        // A clock that cannot be read is not a reason to guess: light stands.
+        self::assertSame('light', self::bootstrapResult($empty, 'Number.NaN'));
+        self::assertSame('light', self::bootstrapResult($empty, 99));
+    }
+
+    /**
+     * A choice, once made, is not re-decided every morning: the stored value
+     * wins at any hour, in both directions, and an unusable stored value is
+     * no value at all rather than a third state.
+     */
+    public function testAStoredChoiceBeatsTheClockInBothDirections(): void
+    {
+        $stored = static fn (string $value): string => sprintf(
+            'get localStorage() { return { getItem() { return %s; } }; }',
+            json_encode($value, JSON_THROW_ON_ERROR)
+        );
+
+        // Light kept at eleven at night, dark kept at noon.
+        self::assertSame('light', self::bootstrapResult($stored('light'), 23));
+        self::assertSame('dark', self::bootstrapResult($stored('dark'), 12));
+
+        // Anything else is not a preference, so the clock decides.
+        foreach (['', 'system', 'DARK', 'null'] as $invalid) {
+            self::assertSame('dark', self::bootstrapResult($stored($invalid), 22), $invalid);
+            self::assertSame('light', self::bootstrapResult($stored($invalid), 10), $invalid);
+        }
+    }
+
+    /**
+     * The bootstrap and the module must not be able to disagree.
+     *
+     * They cannot share code — one is an inline script in the head, the other
+     * a module from the build — so what holds them together is this: both
+     * state the same two boundaries, both read the same key, and neither
+     * consults the operating system's colour scheme, which under PORT-138 no
+     * longer outranks the product rule.
+     */
+    public function testTheBootstrapAndTheModuleResolveTheThemeIdentically(): void
+    {
+        // Both files *say* they consult no such thing; what is asserted is
+        // that neither one does, so the prose is stripped before looking.
+        $script = self::withoutComments(self::inlineBootstrapSource());
+        $module = self::withoutComments(self::themeModule());
+
+        foreach ([$script, $module] as $source) {
+            self::assertStringContainsString('getHours()', $source, 'Both paths must read the local hour');
+            self::assertStringNotContainsString('prefers-color-scheme', $source);
+            self::assertStringNotContainsString('geolocation', $source);
+            self::assertStringNotContainsString('sunrise', $source);
+        }
+
+        // The two boundaries, stated in both files.
+        self::assertMatchesRegularExpression('/hour\s*>=\s*7\s*&&\s*hour\s*<\s*20/', $script);
+        self::assertStringContainsString('const DAY_STARTS_AT = 7;', $module);
+        self::assertStringContainsString('const NIGHT_STARTS_AT = 20;', $module);
+        self::assertMatchesRegularExpression(
+            '/hour\s*>=\s*DAY_STARTS_AT\s*&&\s*hour\s*<\s*NIGHT_STARTS_AT/',
+            $module
+        );
+
+        // And the module's own precedence is the bootstrap's: choice, then clock.
+        self::assertMatchesRegularExpression('/storedTheme\(\)\s*\?\?\s*timeTheme\(\)/', $module);
+    }
+
+    /**
+     * The manual theme change is a transition with an end.
+     *
+     * The mechanism differs by engine and neither half of it can be seen from
+     * PHP; what can be checked here is the contract both halves are built on —
+     * one attribute, set only by the module, removed by both a completion
+     * handler and a timer, never printed into the served document, and inert
+     * under reduced motion.
+     */
+    public function testTheGlobalThemeTransitionIsBoundedAndNeverShipsInTheDocument(): void
+    {
+        $module = self::withoutComments(self::themeModule());
+        $css = self::css();
+
+        self::assertStringContainsString("TRANSITION_ATTRIBUTE = 'data-facet-theme-shift'", $module);
+        self::assertStringContainsString('prefersReducedMotion()', $module);
+        self::assertStringContainsString('removeAttribute(TRANSITION_ATTRIBUTE)', $module);
+        self::assertStringContainsString('window.setTimeout(settle', $module);
+
+        // No dependency, no frame loop, and no browser API the engines
+        // disagree about: the transition is a transition.
+        self::assertStringNotContainsString('requestAnimationFrame', $module);
+        self::assertStringNotContainsString('startViewTransition', $module);
+        self::assertDoesNotMatchRegularExpression('/^\s*import\s/m', $module);
+
+        // One mechanism, declared once, and it stands down for reduced motion.
+        self::assertStringContainsString('html[data-facet-theme-shift]', $css);
+        self::assertStringContainsString('@media (prefers-reduced-motion: no-preference)', $css);
+
+        // The capsule keeps its own animation while the document crosses.
+        self::assertStringContainsString(
+            '*:not(.facet-theme-toggle, .facet-theme-toggle *)',
+            $css
+        );
+
+        // Nothing about a transition is in the served markup: the page a
+        // visitor opens has a theme, not a theme change.
+        self::assertStringNotContainsString('data-facet-theme-shift', self::html());
+    }
+
+    /**
+     * Runs the real inline bootstrap in Node against a stubbed storage and a
+     * stubbed clock, and reports the theme it stamped — `unset` if it stamped
+     * none.
+     *
+     * @param string     $storage a property descriptor for `window.localStorage`
+     * @param int|string $hour    what `getHours()` returns, or a JS expression
+     */
+    private static function bootstrapResult(string $storage, int|string $hour): string
     {
         $node = self::nodeBinary();
 
@@ -327,53 +496,46 @@ final class ThemeShellTest extends TestCase
 
         $script = self::inlineBootstrapSource();
 
-        $cases = [
-            'throwing' => 'get localStorage() { throw new Error("SecurityError"); }',
-            'empty' => 'get localStorage() { return { getItem() { return null; } }; }',
-            'hostile' => 'get localStorage() { return { getItem() { return "<script>"; } }; }',
-            'stored-dark' => 'get localStorage() { return { getItem() { return "dark"; } }; }',
-        ];
-
-        $expected = [
-            'throwing' => 'unset',
-            'empty' => 'unset',
-            'hostile' => 'unset',
-            'stored-dark' => 'dark',
-        ];
-
-        foreach ($cases as $name => $storage) {
-            $harness = <<<JS
-            let applied = 'unset';
-            const document = {
-                documentElement: {
-                    setAttribute(name, value) {
-                        if (name === 'data-theme') {
-                            applied = value;
-                        }
-                    },
+        $harness = <<<JS
+        let applied = 'unset';
+        const document = {
+            documentElement: {
+                setAttribute(name, value) {
+                    if (name === 'data-theme') {
+                        applied = value;
+                    }
                 },
-            };
-            const window = { {$storage} };
+            },
+        };
+        const window = { {$storage} };
 
-            {$script}
+        /* A clock that says exactly one thing, so the assertion is about the
+           rule rather than about when the suite ran. */
+        const Date = class {
+            getHours() {
+                return {$hour};
+            }
+        };
 
-            console.log(applied);
-            JS;
+        {$script}
 
-            $file = tempnam(sys_get_temp_dir(), 'facet-theme-');
-            self::assertIsString($file);
-            file_put_contents($file, $harness);
+        console.log(applied);
+        JS;
 
-            $output = [];
-            $status = 0;
-            exec(escapeshellarg($node) . ' ' . escapeshellarg($file) . ' 2>&1', $output, $status);
-            unlink($file);
+        $file = tempnam(sys_get_temp_dir(), 'facet-theme-');
+        self::assertIsString($file);
+        file_put_contents($file, $harness);
 
-            $result = trim(implode("\n", $output));
+        $output = [];
+        $status = 0;
+        exec(escapeshellarg($node) . ' ' . escapeshellarg($file) . ' 2>&1', $output, $status);
+        unlink($file);
 
-            self::assertSame(0, $status, $name . ': the bootstrap must not throw — ' . $result);
-            self::assertSame($expected[$name], $result, $name);
-        }
+        $result = trim(implode("\n", $output));
+
+        self::assertSame(0, $status, 'The bootstrap must not throw — ' . $result);
+
+        return $result;
     }
 
     /** Criterion 11: shared structure stays neutral; the selected skin owns identity. */
@@ -516,6 +678,21 @@ final class ThemeShellTest extends TestCase
         self::assertIsString($script);
 
         return $script;
+    }
+
+    /**
+     * The same source with its comments taken out, so an assertion about what
+     * a file *does* is never satisfied — or defeated — by what it says.
+     */
+    private static function withoutComments(string $source): string
+    {
+        $stripped = preg_replace('#/\*.*?\*/#s', '', $source);
+        self::assertIsString($stripped);
+
+        $stripped = preg_replace('#^\s*//.*$#m', '', $stripped);
+        self::assertIsString($stripped);
+
+        return $stripped;
     }
 
     /**

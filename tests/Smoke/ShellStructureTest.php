@@ -28,7 +28,7 @@ use PHPUnit\Framework\TestCase;
 final class ShellStructureTest extends TestCase
 {
     /** Public routes that render a page today. */
-    private const RENDERED_PATHS = ['/', '/projects', '/projects/kushim', '/about', '/contact'];
+    private const RENDERED_PATHS = ['/fr', '/fr/projects', '/fr/projects/kushim', '/fr/about', '/fr/contact'];
 
     private const NAV_ID = 'facet-primary-nav';
 
@@ -117,9 +117,27 @@ final class ShellStructureTest extends TestCase
             self::one($xpath, '//main', $path . ' must have exactly one main');
             self::one($xpath, '//footer', $path . ' must have exactly one footer');
 
-            $nav = self::one($xpath, '//header//nav', $path . ' must have one navigation landmark in the header');
-            self::assertSame('Primary', $nav->getAttribute('aria-label'), $path);
+            // Two navigation landmarks, and both are named: the sections of
+            // the site, and the languages it is written in. An unnamed second
+            // landmark would be the accessibility defect here — two "navigation"
+            // regions a screen reader cannot tell apart — so the names are
+            // asserted, not merely the count.
+            $nav = self::one(
+                $xpath,
+                '//header//nav[@data-facet-nav]',
+                $path . ' must have one primary navigation landmark in the header'
+            );
+            self::assertSame('Navigation principale', $nav->getAttribute('aria-label'), $path);
             self::assertSame(self::NAV_ID, $nav->getAttribute('id'), $path);
+
+            $languages = self::one(
+                $xpath,
+                '//header//nav[@data-facet-lang]',
+                $path . ' must have one language landmark in the header'
+            );
+            self::assertSame('Langue', $languages->getAttribute('aria-label'), $path);
+
+            self::assertSame(2, self::query($xpath, '//header//nav')->length, $path);
 
             $main = self::one($xpath, '//main', $path);
             self::assertSame('main', $main->getAttribute('id'), $path . ' must anchor the skip link');
@@ -151,7 +169,7 @@ final class ShellStructureTest extends TestCase
             self::assertInstanceOf(DOMElement::class, $first);
             self::assertSame('a', $first->tagName, $path . ': the first focusable element must be the skip link');
             self::assertSame('#main', $first->getAttribute('href'), $path);
-            self::assertSame('Skip to content', trim($first->textContent), $path);
+            self::assertSame('Aller au contenu', trim($first->textContent), $path);
 
             // It is moved off-screen, never removed from the tab order.
             self::assertSame('', $first->getAttribute('hidden'), $path);
@@ -167,16 +185,19 @@ final class ShellStructureTest extends TestCase
     public function testActiveNavigationIsCorrectForExactAndNestedUrls(): void
     {
         $expectations = [
-            '/' => 'Home',
-            '/projects' => 'Projects',
-            '/projects/kushim' => 'Projects',
-            '/about' => 'About',
-            '/contact' => 'Contact',
+            '/fr' => 'Accueil',
+            '/fr/projects' => 'Projets',
+            '/fr/projects/kushim' => 'Projets',
+            '/fr/about' => 'À propos',
+            '/fr/contact' => 'Contact',
         ];
 
         foreach ($expectations as $path => $label) {
             $xpath = self::dom(self::html($path));
 
+            // `page` is the primary navigation's mark. The language switch
+            // states `aria-current="true"` instead — it says which language is
+            // in effect, not which page you are on — so the two never collide.
             $current = self::query($xpath, '//header//nav//a[@aria-current="page"]');
 
             self::assertSame(1, $current->length, $path . ' must mark exactly one link current');
@@ -197,8 +218,14 @@ final class ShellStructureTest extends TestCase
         self::one($xpath, '//header', 'The 404 page must render the shared header');
         self::one($xpath, '//main', 'The 404 page must render main');
         self::one($xpath, '//footer', 'The 404 page must render the shared footer');
-        self::assertSame(4, self::query($xpath, '//header//nav//a')->length);
-        self::assertSame(0, self::query($xpath, '//header//nav//a[@aria-current]')->length);
+        // Four sections plus the two languages: the shell is complete on a
+        // 404, in the language the visitor was resolved to.
+        self::assertSame(4, self::query($xpath, '//header//nav[@data-facet-nav]//a')->length);
+        self::assertSame(2, self::query($xpath, '//header//nav[@data-facet-lang]//a')->length);
+        self::assertSame(
+            0,
+            self::query($xpath, '//header//nav[@data-facet-nav]//a[@aria-current]')->length
+        );
     }
 
     /**
@@ -213,11 +240,21 @@ final class ShellStructureTest extends TestCase
 
             self::assertStringNotContainsString('<noscript', $noJs, $path);
 
-            $links = self::query($xpath, '//header//nav//a[@href]');
+            $links = self::query($xpath, '//header//nav[@data-facet-nav]//a[@href]');
             self::assertSame(4, $links->length, $path . ': every section must be reachable without JavaScript');
 
-            $nav = self::one($xpath, '//header//nav', $path);
+            $nav = self::one($xpath, '//header//nav[@data-facet-nav]', $path);
             self::assertSame('', $nav->getAttribute('hidden'), $path . ': the navigation must not start hidden');
+
+            // The language switch is the one header control that never ships
+            // hidden and never needs a script: it is two links to two canonical
+            // URLs, so changing language is navigation and nothing else.
+            $languages = self::query($xpath, '//header//nav[@data-facet-lang]//a[@href]');
+            self::assertSame(2, $languages->length, $path . ': both languages must be reachable without JavaScript');
+
+            $switch = self::one($xpath, '//header//nav[@data-facet-lang]', $path);
+            self::assertSame('', $switch->getAttribute('hidden'), $path . ': the language switch must never be hidden');
+            self::assertNotSame('', $switch->getAttribute('aria-label'), $path . ': the switch must name itself');
 
             // Both enhanced controls are inert until the runtime reveals them.
             foreach (['data-facet-nav-toggle', 'data-facet-theme-toggle'] as $hook) {
@@ -237,7 +274,7 @@ final class ShellStructureTest extends TestCase
      */
     public function testEnhancedControlsDeclareTheirStateTargetAndName(): void
     {
-        $xpath = self::dom(self::html('/'));
+        $xpath = self::dom(self::html('/fr'));
 
         $navToggle = self::one($xpath, '//button[@data-facet-nav-toggle]', 'one navigation toggle');
         self::assertSame('button', $navToggle->getAttribute('type'), 'A toggle inside no form must still not submit');

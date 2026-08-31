@@ -309,7 +309,7 @@ final class ContactHttpFlowTest extends TestCase
      */
     private function openForm(): array
     {
-        $response = $this->request('GET', '/contact');
+        $response = $this->request('GET', '/fr/contact');
 
         self::assertSame(200, $response['status']);
 
@@ -342,22 +342,22 @@ final class ContactHttpFlowTest extends TestCase
         );
         self::assertSame(0, $this->rowCount(), 'Rendering the form writes nothing');
 
-        $posted = $this->request('POST', '/contact', ['_token' => $form['token']] + self::VALID);
+        $posted = $this->request('POST', '/fr/contact', ['_token' => $form['token']] + self::VALID);
 
         self::assertSame(303, $posted['status'], 'A success is a See Other, so the next request is a GET');
-        self::assertSame('/contact', self::headerValue('Location', $posted['headers']));
+        self::assertSame('/fr/contact', self::headerValue('Location', $posted['headers']));
         self::assertSame('', trim($posted['body']));
         self::assertSame(1, $this->rowCount());
 
         // The browser follows the redirect with the same cookie.
-        $landing = $this->request('GET', '/contact');
+        $landing = $this->request('GET', '/fr/contact');
 
         self::assertSame(200, $landing['status']);
         self::assertSame(1, $this->rowCount(), 'Following the redirect stores nothing more');
 
         $notice = Dom::element(Dom::of(Dom::withoutScripts($landing['body'])), '//main//*[@id="contact-notice"]');
 
-        self::assertStringContainsString('has been received', Dom::textOf($notice));
+        self::assertStringContainsString('a été reçu', Dom::textOf($notice));
 
         // The stored row is the message that was typed.
         $row = $this->rows()[0];
@@ -377,14 +377,14 @@ final class ContactHttpFlowTest extends TestCase
     {
         $form = $this->openForm();
 
-        $this->request('POST', '/contact', ['_token' => $form['token']] + self::VALID);
-        $this->request('GET', '/contact');
+        $this->request('POST', '/fr/contact', ['_token' => $form['token']] + self::VALID);
+        $this->request('GET', '/fr/contact');
 
         for ($i = 0; $i < 5; $i++) {
-            $refresh = $this->request('GET', '/contact');
+            $refresh = $this->request('GET', '/fr/contact');
 
             self::assertSame(200, $refresh['status']);
-            self::assertStringNotContainsString('has been received', $refresh['body'], 'Refresh ' . $i);
+            self::assertStringNotContainsString('a été reçu', $refresh['body'], 'Refresh ' . $i);
         }
 
         self::assertSame(1, $this->rowCount(), 'No reload may add a row');
@@ -398,7 +398,7 @@ final class ContactHttpFlowTest extends TestCase
      */
     public function testTheSessionCookieCarriesTheFlagsTheAdapterAsked(): void
     {
-        $response = $this->request('GET', '/contact');
+        $response = $this->request('GET', '/fr/contact');
 
         $setCookies = self::headerValues('Set-Cookie', $response['headers']);
 
@@ -427,11 +427,11 @@ final class ContactHttpFlowTest extends TestCase
      */
     public function testASubmissionWithNoSessionOrTokenIsRefusedOverTheWire(): void
     {
-        $response = $this->request('POST', '/contact', self::VALID);
+        $response = $this->request('POST', '/fr/contact', self::VALID);
 
         self::assertSame(403, $response['status']);
         self::assertSame(0, $this->rowCount());
-        self::assertStringNotContainsString('has been received', $response['body']);
+        self::assertStringNotContainsString('a été reçu', $response['body']);
     }
 
     /**
@@ -446,7 +446,7 @@ final class ContactHttpFlowTest extends TestCase
         // A second "browser": same server, no cookie jar.
         $this->cookies = [];
 
-        $response = $this->request('POST', '/contact', ['_token' => $form['token']] + self::VALID);
+        $response = $this->request('POST', '/fr/contact', ['_token' => $form['token']] + self::VALID);
 
         self::assertSame(403, $response['status']);
         self::assertSame(0, $this->rowCount());
@@ -460,10 +460,10 @@ final class ContactHttpFlowTest extends TestCase
     {
         $form = $this->openForm();
 
-        self::assertSame(303, $this->request('POST', '/contact', ['_token' => $form['token']] + self::VALID)['status']);
+        self::assertSame(303, $this->request('POST', '/fr/contact', ['_token' => $form['token']] + self::VALID)['status']);
         self::assertSame(1, $this->rowCount());
 
-        $replay = $this->request('POST', '/contact', ['_token' => $form['token']] + self::VALID);
+        $replay = $this->request('POST', '/fr/contact', ['_token' => $form['token']] + self::VALID);
 
         self::assertSame(403, $replay['status']);
         self::assertSame(1, $this->rowCount());
@@ -472,7 +472,7 @@ final class ContactHttpFlowTest extends TestCase
         $next = $this->openForm();
 
         self::assertNotSame($form['token'], $next['token']);
-        self::assertSame(303, $this->request('POST', '/contact', ['_token' => $next['token']] + self::VALID)['status']);
+        self::assertSame(303, $this->request('POST', '/fr/contact', ['_token' => $next['token']] + self::VALID)['status']);
         self::assertSame(2, $this->rowCount());
     }
 
@@ -484,7 +484,7 @@ final class ContactHttpFlowTest extends TestCase
     {
         $form = $this->openForm();
 
-        $response = $this->request('POST', '/contact', [
+        $response = $this->request('POST', '/fr/contact', [
             '_token' => $form['token'],
             'name' => 'Ada Lovelace',
             'email' => 'not-an-address',
@@ -513,7 +513,7 @@ final class ContactHttpFlowTest extends TestCase
         // The correction goes through with the token the rejected page carried.
         $token = Dom::element($xpath, '//main//form//input[@name="_token"]')->getAttribute('value');
 
-        self::assertSame(303, $this->request('POST', '/contact', ['_token' => $token] + self::VALID)['status']);
+        self::assertSame(303, $this->request('POST', '/fr/contact', ['_token' => $token] + self::VALID)['status']);
         self::assertSame(1, $this->rowCount());
     }
 
@@ -525,17 +525,17 @@ final class ContactHttpFlowTest extends TestCase
     {
         $form = $this->openForm();
 
-        $trapped = $this->request('POST', '/contact', [
+        $trapped = $this->request('POST', '/fr/contact', [
             '_token' => $form['token'],
             'website' => 'http://spam.example',
         ] + self::VALID);
 
         self::assertSame(303, $trapped['status']);
-        self::assertSame('/contact', self::headerValue('Location', $trapped['headers']));
+        self::assertSame('/fr/contact', self::headerValue('Location', $trapped['headers']));
         self::assertSame(0, $this->rowCount(), 'A trapped submission must never reach the table');
 
         // Even the page it lands on says the same thing.
-        self::assertStringContainsString('has been received', $this->request('GET', '/contact')['body']);
+        self::assertStringContainsString('a été reçu', $this->request('GET', '/fr/contact')['body']);
         self::assertSame(0, $this->rowCount());
     }
 
@@ -549,7 +549,7 @@ final class ContactHttpFlowTest extends TestCase
         for ($i = 0; $i < RateLimiter::DEFAULT_LIMIT + 3; $i++) {
             $form = $this->openForm();
 
-            $statuses[] = $this->request('POST', '/contact', ['_token' => $form['token']] + self::VALID)['status'];
+            $statuses[] = $this->request('POST', '/fr/contact', ['_token' => $form['token']] + self::VALID)['status'];
         }
 
         self::assertSame(
@@ -570,7 +570,7 @@ final class ContactHttpFlowTest extends TestCase
     {
         for ($i = 0; $i < RateLimiter::DEFAULT_LIMIT + 1; $i++) {
             $form = $this->openForm();
-            $this->request('POST', '/contact', ['_token' => $form['token']] + self::VALID);
+            $this->request('POST', '/fr/contact', ['_token' => $form['token']] + self::VALID);
         }
 
         self::assertSame(RateLimiter::DEFAULT_LIMIT, $this->rowCount());
@@ -579,7 +579,7 @@ final class ContactHttpFlowTest extends TestCase
         $this->cookies = [];
         $form = $this->openForm();
 
-        self::assertSame(303, $this->request('POST', '/contact', ['_token' => $form['token']] + self::VALID)['status']);
+        self::assertSame(303, $this->request('POST', '/fr/contact', ['_token' => $form['token']] + self::VALID)['status']);
         self::assertSame(RateLimiter::DEFAULT_LIMIT + 1, $this->rowCount());
     }
 
@@ -595,10 +595,10 @@ final class ContactHttpFlowTest extends TestCase
 
         $responses = [
             'form' => $form['response'],
-            'refused' => $this->request('POST', '/contact', self::VALID),
-            'invalid' => $this->request('POST', '/contact', ['_token' => $form['token'], 'email' => 'x'] + self::VALID),
-            'accepted' => $this->request('POST', '/contact', ['_token' => $this->openForm()['token']] + self::VALID),
-            'landing' => $this->request('GET', '/contact'),
+            'refused' => $this->request('POST', '/fr/contact', self::VALID),
+            'invalid' => $this->request('POST', '/fr/contact', ['_token' => $form['token'], 'email' => 'x'] + self::VALID),
+            'accepted' => $this->request('POST', '/fr/contact', ['_token' => $this->openForm()['token']] + self::VALID),
+            'landing' => $this->request('GET', '/fr/contact'),
         ];
 
         foreach ($responses as $why => $response) {
@@ -627,7 +627,7 @@ final class ContactHttpFlowTest extends TestCase
      */
     public function testTheScriptStrippedFormIsStillFullyUsable(): void
     {
-        $noJs = Dom::withoutScripts($this->request('GET', '/contact')['body']);
+        $noJs = Dom::withoutScripts($this->request('GET', '/fr/contact')['body']);
 
         self::assertStringNotContainsString('<noscript', $noJs);
         self::assertStringNotContainsString('javascript:', $noJs);
@@ -636,7 +636,7 @@ final class ContactHttpFlowTest extends TestCase
         $formElement = Dom::element($xpath, '//main//form');
 
         self::assertSame('post', strtolower($formElement->getAttribute('method')));
-        self::assertSame('/contact', $formElement->getAttribute('action'));
+        self::assertSame('/fr/contact', $formElement->getAttribute('action'));
 
         foreach (ContactValidator::FIELDS as $field) {
             Dom::element($xpath, sprintf('//main//form//*[@name="%s"]', $field), $field);
@@ -648,7 +648,7 @@ final class ContactHttpFlowTest extends TestCase
         Dom::element($xpath, '//main//form//button[@type="submit"]');
 
         // And a submission built only from what that document contains works.
-        self::assertSame(303, $this->request('POST', '/contact', ['_token' => $token] + self::VALID)['status']);
+        self::assertSame(303, $this->request('POST', '/fr/contact', ['_token' => $token] + self::VALID)['status']);
         self::assertSame(1, $this->rowCount());
     }
 }

@@ -77,10 +77,10 @@ final class Phase2GateTest extends TestCase
      */
     private static function publicPages(): array
     {
-        $paths = ['/', '/projects', '/about', '/contact'];
+        $paths = ['/fr', '/fr/projects', '/fr/about', '/fr/contact'];
 
         foreach (self::corpus()->projects() as $project) {
-            $paths[] = '/projects/' . $project->slug()->value();
+            $paths[] = '/fr/projects/' . $project->slug()->value();
         }
 
         return $paths;
@@ -260,11 +260,15 @@ final class Phase2GateTest extends TestCase
      */
     public function testUnknownProjectsAre404AndRedirectsAreDeterministic(): void
     {
-        foreach (['/projects/no-such-project', '/projects/kushim-2', '/projects/Kushim'] as $path) {
+        foreach (['/fr/projects/no-such-project', '/fr/projects/kushim-2', '/fr/projects/Kushim'] as $path) {
             self::assertSame(404, self::request('GET', $path)['status'], $path);
         }
 
-        foreach (['/projects/' => '/projects', '/about/' => '/about', '/contact/' => '/contact'] as $from => $to) {
+        foreach ([
+            '/fr/projects/' => '/fr/projects',
+            '/fr/about/' => '/fr/about',
+            '/fr/contact/' => '/fr/contact',
+        ] as $from => $to) {
             $first = self::request('GET', $from);
             $second = self::request('GET', $from);
 
@@ -343,7 +347,8 @@ final class Phase2GateTest extends TestCase
             $xpath = Dom::of($body);
 
             self::assertSame(1, self::query($xpath, '//body//a[@href="#main"]')->length, $path);
-            self::assertSame(1, self::query($xpath, '//header//nav[@aria-label="Primary"]')->length, $path);
+            self::assertSame(1, self::query($xpath, '//header//nav[@aria-label="Navigation principale"]')->length, $path);
+            self::assertSame(1, self::query($xpath, '//header//nav[@aria-label="Langue"]')->length, $path);
             self::assertSame(1, self::query($xpath, '//main[@id="main"]')->length, $path);
             self::assertSame(1, self::query($xpath, '//footer')->length, $path);
             self::assertSame(1, self::query($xpath, '//main//h1')->length, $path . ' must have exactly one H1');
@@ -352,10 +357,10 @@ final class Phase2GateTest extends TestCase
 
         // Project navigation: the catalogue links to every canonical project,
         // and each case study links back.
-        $catalogue = self::noJsPage('/projects');
+        $catalogue = self::noJsPage('/fr/projects');
 
         foreach (self::corpus()->projects() as $project) {
-            $href = '/projects/' . $project->slug()->value();
+            $href = '/fr/projects/' . $project->slug()->value();
 
             self::assertGreaterThan(
                 0,
@@ -365,17 +370,17 @@ final class Phase2GateTest extends TestCase
 
             self::assertGreaterThan(
                 0,
-                self::query(self::noJsPage($href), '//main//a[@href="/projects"]')->length,
+                self::query(self::noJsPage($href), '//main//a[@href="/fr/projects"]')->length,
                 $href . ' must link back to the catalogue without JavaScript'
             );
         }
 
         // Contact fields: all four, labelled, inside a form that really posts.
-        $contact = self::noJsPage('/contact');
+        $contact = self::noJsPage('/fr/contact');
         $form = Dom::element($contact, '//main//form');
 
         self::assertSame('post', strtolower($form->getAttribute('method')));
-        self::assertSame('/contact', $form->getAttribute('action'));
+        self::assertSame('/fr/contact', $form->getAttribute('action'));
 
         foreach (['name', 'email', 'subject', 'message'] as $field) {
             $control = Dom::element($contact, sprintf('//main//form//*[@name="%s"]', $field), $field);
@@ -438,7 +443,7 @@ final class Phase2GateTest extends TestCase
     {
         $probes = array_merge(
             self::publicPages(),
-            ['/projects/no-such-project', '/definitely-not-a-page', '/projects/', '/login']
+            ['/fr/projects/no-such-project', '/definitely-not-a-page', '/fr/projects/', '/login']
         );
 
         foreach ($probes as $path) {
@@ -461,7 +466,7 @@ final class Phase2GateTest extends TestCase
         // POST /contact is implemented, and this request carries no CSRF token
         // and no session — the shape a cross-site submission arrives in. It
         // must be refused with a status, not with a diagnostic.
-        $posted = self::request('POST', '/contact');
+        $posted = self::request('POST', '/fr/contact');
 
         self::assertSame(403, $posted['status']);
 

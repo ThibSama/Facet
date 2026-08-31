@@ -20,7 +20,14 @@ final class ResponseEmitter
             http_response_code($response->status());
 
             foreach ($response->headers() as $name => $value) {
-                header($name . ': ' . $value, true);
+                // Every header replaces whatever was set before it — except
+                // Set-Cookie, which is the one header a response legitimately
+                // repeats. The session adapter has already emitted the session
+                // cookie by the time a Response is emitted, and replacing that
+                // header with the locale preference would drop the session on
+                // the floor: no token, no flash, and a contact form that
+                // refuses every submission.
+                header($name . ': ' . $value, strcasecmp($name, 'Set-Cookie') !== 0);
             }
         }
 

@@ -62,7 +62,12 @@ final class ContactValidation
     }
 
     /**
-     * Field name to a human-readable reason. Empty when the submission passed.
+     * Field name to the reason it was refused. Empty when the submission
+     * passed.
+     *
+     * A reason is a stable identifier — `email.malformed` — and never prose:
+     * the sentence a visitor reads is composed in the language of the page,
+     * from {@see \Facet\I18n\Translations}. See {@see ContactValidator::REASONS}.
      *
      * @return array<string, string>
      */

@@ -1,0 +1,33 @@
+PORT-137 — header geometry with the language switch, FR and EN.
+
+Every row is measured on the served page, in the language named.
+
+"header" is the shell row PORT-137 added a control to: it overflows
+when the brand, the language switch, the collapse control and the
+theme toggle no longer fit on one line. That is the measurement the
+placement decision turned on, and it is "no" at every width.
+
+"document" is the whole page scrolling sideways. It is "no" at every
+width in both languages: the skills ribbons and the finale plate run
+past the measure by design and are clipped, so nothing escapes.
+
+"collision" is any pair of header controls whose boxes intersect.
+
+ 320px  fr  switch 86×46      targets 41×44 42×44  header fits  document no  (320/320)  collisions none
+ 320px  en  switch 86×46      targets 41×44 42×44  header fits  document no  (320/320)  collisions none
+ 390px  fr  switch 86×46      targets 41×44 42×44  header fits  document no  (390/390)  collisions none
+ 390px  en  switch 86×46      targets 41×44 42×44  header fits  document no  (390/390)  collisions none
+ 412px  fr  switch 86×46      targets 41×44 42×44  header fits  document no  (412/412)  collisions none
+ 412px  en  switch 86×46      targets 41×44 42×44  header fits  document no  (412/412)  collisions none
+ 768px  fr  switch 86×46      targets 41×44 42×44  header fits  document no  (768/768)  collisions none
+ 768px  en  switch 86×46      targets 41×44 42×44  header fits  document no  (768/768)  collisions none
+ 834px  fr  switch 86×46      targets 41×44 42×44  header fits  document no  (834/834)  collisions none
+ 834px  en  switch 86×46      targets 41×44 42×44  header fits  document no  (834/834)  collisions none
+1024px  fr  switch 86×46      targets 41×44 42×44  header fits  document no  (1024/1024)  collisions none
+1024px  en  switch 86×46      targets 41×44 42×44  header fits  document no  (1024/1024)  collisions none
+1280px  fr  switch 86×46      targets 41×44 42×44  header fits  document no  (1280/1280)  collisions none
+1280px  en  switch 86×46      targets 41×44 42×44  header fits  document no  (1280/1280)  collisions none
+1512px  fr  switch 86×46      targets 41×44 42×44  header fits  document no  (1512/1512)  collisions none
+1512px  en  switch 86×46      targets 41×44 42×44  header fits  document no  (1512/1512)  collisions none
+1920px  fr  switch 86×46      targets 41×44 42×44  header fits  document no  (1920/1920)  collisions none
+1920px  en  switch 86×46      targets 41×44 42×44  header fits  document no  (1920/1920)  collisions none

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Facet\Content;
 
 use Facet\Content\Exception\InvalidContentException;
+use Facet\I18n\Locale;
 use Facet\Support\InvalidSlugException;
 use Facet\Support\Slug;
 
@@ -36,19 +37,29 @@ final class CorpusLoader
     }
 
     /**
+     * The corpus in one language.
+     *
+     * Facts are read from `content/*.json` whatever the locale; prose is read
+     * through a {@see TranslationOverlay}, which is the identity overlay for
+     * the language the corpus is authored in. There is therefore exactly one
+     * loading path and one set of validations, and a locale cannot acquire a
+     * different set of projects, dates or technologies than another.
+     *
      * @throws InvalidContentException when any source is missing or malformed
      */
-    public function load(): Corpus
+    public function load(?Locale $locale = null): Corpus
     {
+        $overlay = TranslationOverlay::load($this->directory, $locale ?? Locale::default());
+
         return Corpus::create(
-            $this->loadProfile(),
-            $this->loadProjects(),
-            $this->loadSkills(),
-            $this->loadExperiences()
+            $this->loadProfile($overlay),
+            $this->loadProjects($overlay),
+            $this->loadSkills($overlay),
+            $this->loadExperiences($overlay)
         );
     }
 
-    private function loadProfile(): Profile
+    private function loadProfile(TranslationOverlay $overlay): Profile
     {
         $source = 'profile.json';
         $data = $this->readDocument($source);
@@ -56,19 +67,19 @@ final class CorpusLoader
 
         return Profile::create(
             self::requireString($profile, 'name', $source),
-            self::requireString($profile, 'headline', $source),
+            $overlay->text(['profile', 'headline'], self::requireString($profile, 'headline', $source)),
             self::requireString($profile, 'location', $source),
-            self::requireString($profile, 'summary', $source),
-            self::requireStringList($profile, 'focusAreas', $source),
-            self::readLinks($profile, $source),
-            self::readMedia($profile, 'portrait', $source)
+            $overlay->text(['profile', 'summary'], self::requireString($profile, 'summary', $source)),
+            $overlay->list(['profile', 'focusAreas'], self::requireStringList($profile, 'focusAreas', $source)),
+            self::readLinks($profile, $source, $overlay, ['profile', 'links']),
+            self::readMedia($profile, 'portrait', $source, $overlay, ['profile', 'portrait', 'description'])
         );
     }
 
     /**
      * @return list<Project>
      */
-    private function loadProjects(): array
+    private function loadProjects(TranslationOverlay $overlay): array
     {
         $source = 'projects.json';
         $data = $this->readDocument($source);
@@ -84,19 +95,22 @@ final class CorpusLoader
             }
 
             /** @var array<string, mixed> $row */
+            $slug = self::readSlug($row, $label);
+            $entry = ['projects', $slug->value()];
+
             $projects[] = Project::create(
-                self::readSlug($row, $label),
+                $slug,
                 self::requireString($row, 'name', $label),
-                self::requireString($row, 'summary', $label),
-                self::requireString($row, 'context', $label),
-                self::requireString($row, 'role', $label),
+                $overlay->text([...$entry, 'summary'], self::requireString($row, 'summary', $label)),
+                $overlay->text([...$entry, 'context'], self::requireString($row, 'context', $label)),
+                $overlay->text([...$entry, 'role'], self::requireString($row, 'role', $label)),
                 self::requireStringList($row, 'technologies', $label),
-                self::requireStringList($row, 'concepts', $label),
+                $overlay->list([...$entry, 'concepts'], self::requireStringList($row, 'concepts', $label)),
                 self::readEnum($row, 'status', $label, ProjectStatus::class),
-                self::requireStringList($row, 'outcomes', $label),
+                $overlay->list([...$entry, 'outcomes'], self::requireStringList($row, 'outcomes', $label)),
                 self::readOptionalPeriod($row, $label),
-                self::readLinks($row, $label),
-                self::readMedia($row, 'media', $label),
+                self::readLinks($row, $label, $overlay, [...$entry, 'links']),
+                self::readMedia($row, 'media', $label, $overlay, [...$entry, 'media', 'description']),
                 self::requireBool($row, 'featured', $label)
             );
         }
@@ -107,7 +121,7 @@ final class CorpusLoader
     /**
      * @return list<Skill>
      */
-    private function loadSkills(): array
+    private function loadSkills(TranslationOverlay $overlay): array
     {
         $source = 'skills.json';
         $data = $this->readDocument($source);
@@ -123,12 +137,15 @@ final class CorpusLoader
             }
 
             /** @var array<string, mixed> $row */
+            $slug = self::readSlug($row, $label);
+            $entry = ['skills', $slug->value()];
+
             $skills[] = Skill::create(
-                self::readSlug($row, $label),
+                $slug,
                 self::requireString($row, 'name', $label),
                 self::readEnum($row, 'category', $label, SkillCategory::class),
-                self::requireString($row, 'summary', $label),
-                self::readLinks($row, $label)
+                $overlay->text([...$entry, 'summary'], self::requireString($row, 'summary', $label)),
+                self::readLinks($row, $label, $overlay, [...$entry, 'links'])
             );
         }
 
@@ -138,7 +155,7 @@ final class CorpusLoader
     /**
      * @return list<Experience>
      */
-    private function loadExperiences(): array
+    private function loadExperiences(TranslationOverlay $overlay): array
     {
         $source = 'experiences.json';
         $data = $this->readDocument($source);
@@ -154,16 +171,19 @@ final class CorpusLoader
             }
 
             /** @var array<string, mixed> $row */
+            $slug = self::readSlug($row, $label);
+            $entry = ['experiences', $slug->value()];
+
             $experiences[] = Experience::create(
-                self::readSlug($row, $label),
+                $slug,
                 self::readEnum($row, 'kind', $label, ExperienceKind::class),
                 self::requireString($row, 'title', $label),
                 self::requireString($row, 'organisation', $label),
                 self::requireString($row, 'location', $label),
                 self::readPeriod($row, $label),
-                self::requireString($row, 'summary', $label),
-                self::requireStringList($row, 'highlights', $label),
-                self::readLinks($row, $label)
+                $overlay->text([...$entry, 'summary'], self::requireString($row, 'summary', $label)),
+                $overlay->list([...$entry, 'highlights'], self::requireStringList($row, 'highlights', $label)),
+                self::readLinks($row, $label, $overlay, [...$entry, 'links'])
             );
         }
 
@@ -350,9 +370,15 @@ final class CorpusLoader
      * the entry's own textual description, so nothing renders empty.
      *
      * @param array<string, mixed> $data
+     * @param list<string|int>     $descriptionPath
      */
-    private static function readMedia(array $data, string $key, string $source): Media
-    {
+    private static function readMedia(
+        array $data,
+        string $key,
+        string $source,
+        TranslationOverlay $overlay,
+        array $descriptionPath
+    ): Media {
         if (!array_key_exists($key, $data)) {
             throw InvalidContentException::missingKey($source, $key);
         }
@@ -369,18 +395,28 @@ final class CorpusLoader
             throw InvalidContentException::wrongType($source, $key . '.source', 'a string or null');
         }
 
-        return Media::create($sourceValue, self::requireString($media, 'description', $source));
+        return Media::create(
+            $sourceValue,
+            $overlay->text($descriptionPath, self::requireString($media, 'description', $source))
+        );
     }
 
     /**
      * @param array<string, mixed> $data
+     * @param list<string|int>     $labelsPath
      *
      * @return list<Link>
      */
-    private static function readLinks(array $data, string $source): array
-    {
+    private static function readLinks(
+        array $data,
+        string $source,
+        TranslationOverlay $overlay,
+        array $labelsPath
+    ): array {
         $raw = self::requireArray($data, 'links', $source);
         $links = [];
+        $canonicalLabels = [];
+        $rows = [];
 
         foreach ($raw as $row) {
             if (!is_array($row)) {
@@ -388,8 +424,21 @@ final class CorpusLoader
             }
 
             /** @var array<string, mixed> $row */
+            $rows[] = $row;
+            $canonicalLabels[] = self::requireString($row, 'label', $source);
+        }
+
+        // A link's URL and type are facts and are never translated; only the
+        // label a reader sees is. The labels are matched positionally against
+        // the canonical list, and a count mismatch is refused by the overlay —
+        // so a translation can rename a link but can never add or drop one.
+        $labels = $canonicalLabels === []
+            ? []
+            : $overlay->list($labelsPath, $canonicalLabels);
+
+        foreach ($rows as $index => $row) {
             $links[] = Link::create(
-                self::requireString($row, 'label', $source),
+                $labels[$index],
                 self::requireString($row, 'url', $source),
                 self::readEnum($row, 'type', $source, LinkType::class)
             );

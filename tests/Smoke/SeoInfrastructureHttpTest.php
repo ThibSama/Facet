@@ -137,7 +137,7 @@ final class SeoInfrastructureHttpTest extends TestCase
         }
 
         foreach ($corpus->projects() as $project) {
-            $path = '/projects/' . $project->slug()->value();
+            $path = '/fr/projects/' . $project->slug()->value();
             $dom = Dom::of(self::get($path)['body']);
             $block = Dom::element($dom, '//script[@type="application/ld+json"]');
             $data = json_decode($block->textContent, true, 512, JSON_THROW_ON_ERROR);

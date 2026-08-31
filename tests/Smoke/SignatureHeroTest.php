@@ -62,7 +62,7 @@ final class SignatureHeroTest extends TestCase
         return $decoded;
     }
 
-    private static function html(string $path = '/'): string
+    private static function html(string $path = '/fr'): string
     {
         $application = Application::boot(self::root(), Config::fromArray([
             'APP_NAME' => 'Facet',
@@ -217,7 +217,7 @@ final class SignatureHeroTest extends TestCase
 
         self::assertFalse($bundle->references($chunk), 'The hero chunk is not a bundled asset');
 
-        foreach (['/', '/projects', '/about', '/contact'] as $route) {
+        foreach (['/fr', '/fr/projects', '/fr/about', '/fr/contact'] as $route) {
             self::assertStringNotContainsString(
                 $chunk,
                 self::html($route),
@@ -232,7 +232,7 @@ final class SignatureHeroTest extends TestCase
      */
     public function testOnlyTheHomePageCarriesAHeroSlot(): void
     {
-        foreach (['/projects', '/about', '/contact'] as $route) {
+        foreach (['/fr/projects', '/fr/about', '/fr/contact'] as $route) {
             $xpath = Dom::of(self::html($route));
 
             self::assertCount(

@@ -51,7 +51,7 @@ final class SkillRibbonTest extends TestCase
             'APP_LOCALE' => 'en',
         ]));
 
-        $response = $application->handle(Request::create('GET', '/'));
+        $response = $application->handle(Request::create('GET', '/fr'));
 
         self::assertSame(200, $response->status());
 

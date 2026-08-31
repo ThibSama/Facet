@@ -120,9 +120,17 @@ final class CanonicalCorpusTest extends TestCase
 
         foreach (self::corpus()->projects() as $project) {
             $slug = $project->slug()->value();
-            $path = $route->toPath(['slug' => $slug]);
 
-            self::assertSame('/projects/' . $slug, $path);
+            // The same project in both languages, at two canonical URLs that
+            // differ only by the language segment. The slug is a fact and does
+            // not translate, which is what keeps the two pages the same page.
+            foreach (\Facet\I18n\Locale::supported() as $locale) {
+                self::assertSame(
+                    '/' . $locale->value . '/projects/' . $slug,
+                    $route->toPath(['locale' => $locale->value, 'slug' => $slug])
+                );
+            }
+
             self::assertNotNull(
                 self::corpus()->findProject(Slug::fromString($slug)),
                 'The route parameter must resolve back to the project'

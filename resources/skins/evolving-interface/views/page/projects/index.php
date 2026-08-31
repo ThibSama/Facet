@@ -17,27 +17,33 @@
  *
  * @var \Facet\Html\ViewContext      $view
  * @var list<\Facet\Content\Project> $projects
+ * @var \Facet\I18n\Translator       $t
+ * @var \Facet\I18n\Locale           $locale
  */
 
 declare(strict_types=1);
 
 use Facet\Html\Html;
+use Facet\I18n\LocalizedRoutes;
+use Facet\Routing\RouteCatalog;
 
-$title = 'Projects';
+require dirname(__DIR__, 2) . '/partials/locale-context.php';
+
+$title = $t->text('projects.title');
 
 require dirname(__DIR__, 2) . '/partials/period-label.php';
 
 ob_start();
 
 ?>
-<h1 class="text-3xl font-semibold tracking-tight">Projects</h1>
+<h1 class="text-3xl font-semibold tracking-tight"><?= $view->text($t->text('projects.title')) ?></h1>
 
 <?php if ($projects !== []): ?>
 <ul class="mt-8 grid gap-6 sm:grid-cols-2" data-facet-card-grid>
     <?php foreach ($projects as $project): ?>
     <?php
     $slug = $project->slug()->value();
-    $href = '/projects/' . $slug;
+    $href = LocalizedRoutes::path(RouteCatalog::PROJECTS_SHOW, $locale, ['slug' => $slug]);
     $headingId = 'project-' . $slug;
 
     $status = $project->status();
@@ -88,7 +94,7 @@ ob_start();
             <?php if ($hasMeta): ?>
             <p class="mt-1 flex flex-wrap gap-x-3 text-sm facet-ink-subtle">
                 <?php if ($status->isSubstantiated()): ?>
-                <span><?= $view->text($status->value) ?></span>
+                <span><?= $view->text($t->text('content.status.' . $status->value)) ?></span>
                 <?php endif; ?>
                 <?php if ($period !== null): ?>
                 <time datetime="<?= $view->attr($period->start()) ?>"><?= $view->text($periodLabel($period)) ?></time>
@@ -102,13 +108,13 @@ ob_start();
             <dl class="mt-3 space-y-1 text-sm facet-ink-subtle">
                 <?php if ($technologies !== []): ?>
                 <div>
-                    <dt class="inline font-medium">Technologies:</dt>
+                    <dt class="inline font-medium"><?= $view->text($t->text('projects.technologiesInline')) ?></dt>
                     <dd class="inline"><?= $view->join($technologies) ?></dd>
                 </div>
                 <?php endif; ?>
                 <?php if ($concepts !== []): ?>
                 <div>
-                    <dt class="inline font-medium">Concepts:</dt>
+                    <dt class="inline font-medium"><?= $view->text($t->text('projects.conceptsInline')) ?></dt>
                     <dd class="inline"><?= $view->join($concepts) ?></dd>
                 </div>
                 <?php endif; ?>

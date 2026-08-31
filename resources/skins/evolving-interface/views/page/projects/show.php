@@ -17,11 +17,17 @@
  *
  * @var \Facet\Html\ViewContext $view
  * @var \Facet\Content\Project  $project
+ * @var \Facet\I18n\Translator  $t
+ * @var \Facet\I18n\Locale      $locale
  */
 
 declare(strict_types=1);
 
 use Facet\Html\Html;
+use Facet\I18n\LocalizedRoutes;
+use Facet\Routing\RouteCatalog;
+
+require dirname(__DIR__, 2) . '/partials/locale-context.php';
 
 $title = $project->name();
 
@@ -44,7 +50,7 @@ ob_start();
 
 ?>
 <p class="text-sm facet-ink-subtle">
-    <a class="facet-link underline" href="<?= $view->url('/projects') ?>">Projects</a>
+    <a class="facet-link underline" href="<?= $view->url(LocalizedRoutes::path(RouteCatalog::PROJECTS_INDEX, $locale)) ?>"><?= $view->text($t->text('projects.title')) ?></a>
 </p>
 
 <h1 class="mt-2 text-3xl font-semibold tracking-tight"><?= $view->text($project->name()) ?></h1>
@@ -52,7 +58,7 @@ ob_start();
 <?php if ($hasMeta): ?>
 <p class="mt-2 flex flex-wrap gap-x-3 text-sm facet-ink-subtle">
     <?php if ($status->isSubstantiated()): ?>
-    <span><?= $view->text($status->value) ?></span>
+    <span><?= $view->text($t->text('content.status.' . $status->value)) ?></span>
     <?php endif; ?>
     <?php if ($period !== null): ?>
     <time datetime="<?= $view->attr($period->start()) ?>"><?= $view->text($periodLabel($period)) ?></time>
@@ -72,18 +78,18 @@ require dirname(__DIR__, 2) . '/partials/media.php';
 ?>
 
 <section class="mt-12" aria-labelledby="context">
-    <h2 id="context" class="text-xl font-semibold">Context</h2>
+    <h2 id="context" class="text-xl font-semibold"><?= $view->text($t->text('project.context')) ?></h2>
     <p class="mt-4 max-w-prose facet-ink-muted"><?= $view->text($project->context()) ?></p>
 </section>
 
 <section class="mt-12" aria-labelledby="role">
-    <h2 id="role" class="text-xl font-semibold">Role</h2>
+    <h2 id="role" class="text-xl font-semibold"><?= $view->text($t->text('project.role')) ?></h2>
     <p class="mt-4 max-w-prose facet-ink-muted"><?= $view->text($project->role()) ?></p>
 </section>
 
 <?php if ($hasTags): ?>
 <section class="mt-12" aria-labelledby="stack">
-    <h2 id="stack" class="text-xl font-semibold">Stack and ideas</h2>
+    <h2 id="stack" class="text-xl font-semibold"><?= $view->text($t->text('project.stack')) ?></h2>
 
     <?php
     /*
@@ -95,13 +101,13 @@ require dirname(__DIR__, 2) . '/partials/media.php';
     <dl class="mt-4 space-y-4">
         <?php if ($technologies !== []): ?>
         <div>
-            <dt class="text-sm font-medium facet-ink-subtle">Technologies</dt>
+            <dt class="text-sm font-medium facet-ink-subtle"><?= $view->text($t->text('projects.technologies')) ?></dt>
             <dd class="mt-1"><?= $view->join($technologies) ?></dd>
         </div>
         <?php endif; ?>
         <?php if ($concepts !== []): ?>
         <div>
-            <dt class="text-sm font-medium facet-ink-subtle">Concepts</dt>
+            <dt class="text-sm font-medium facet-ink-subtle"><?= $view->text($t->text('projects.concepts')) ?></dt>
             <dd class="mt-1"><?= $view->join($concepts) ?></dd>
         </div>
         <?php endif; ?>
@@ -111,7 +117,7 @@ require dirname(__DIR__, 2) . '/partials/media.php';
 
 <?php if ($outcomes !== []): ?>
 <section class="mt-12" aria-labelledby="outcomes">
-    <h2 id="outcomes" class="text-xl font-semibold">Outcomes</h2>
+    <h2 id="outcomes" class="text-xl font-semibold"><?= $view->text($t->text('project.outcomes')) ?></h2>
     <ul class="mt-4 max-w-prose list-disc space-y-1 pl-5 facet-ink-muted">
         <?php foreach ($outcomes as $outcome): ?>
         <li><?= $view->text($outcome) ?></li>
@@ -122,7 +128,7 @@ require dirname(__DIR__, 2) . '/partials/media.php';
 
 <?php if ($links !== []): ?>
 <section class="mt-12" aria-labelledby="links">
-    <h2 id="links" class="text-xl font-semibold">Links</h2>
+    <h2 id="links" class="text-xl font-semibold"><?= $view->text($t->text('project.links')) ?></h2>
 
     <?php
     /*

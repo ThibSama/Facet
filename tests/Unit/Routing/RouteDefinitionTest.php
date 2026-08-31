@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Facet\Tests\Unit\Routing;
 
+use Facet\I18n\Locale;
 use Facet\Routing\DataSource;
 use Facet\Routing\HttpMethod;
 use Facet\Routing\RouteCatalog;
@@ -19,8 +20,11 @@ final class RouteDefinitionTest extends TestCase
     {
         $route = RouteCatalog::get(RouteCatalog::PROJECTS_SHOW);
 
-        self::assertSame('/projects/kushim', $route->toPath(['slug' => 'kushim']));
-        self::assertSame('/projects/portfolio-2024', $route->toPath(['slug' => 'portfolio-2024']));
+        self::assertSame('/fr/projects/kushim', $route->toPath(['locale' => 'fr', 'slug' => 'kushim']));
+        self::assertSame(
+            '/en/projects/portfolio-2024',
+            $route->toPath(['locale' => 'en', 'slug' => 'portfolio-2024'])
+        );
     }
 
     public function testMissingParameterIsRejected(): void
@@ -28,7 +32,7 @@ final class RouteDefinitionTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/requires parameter "slug"/');
 
-        RouteCatalog::get(RouteCatalog::PROJECTS_SHOW)->toPath([]);
+        RouteCatalog::get(RouteCatalog::PROJECTS_SHOW)->toPath(['locale' => 'fr']);
     }
 
     public function testMalformedSlugParameterIsRejected(): void
@@ -36,7 +40,7 @@ final class RouteDefinitionTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/not acceptable for parameter "slug"/');
 
-        RouteCatalog::get(RouteCatalog::PROJECTS_SHOW)->toPath(['slug' => 'Not A Slug']);
+        RouteCatalog::get(RouteCatalog::PROJECTS_SHOW)->toPath(['locale' => 'fr', 'slug' => 'Not A Slug']);
     }
 
     public function testSlugParameterUsesTheCanonicalSlugGrammar(): void
@@ -50,6 +54,34 @@ final class RouteDefinitionTest extends TestCase
         self::assertFalse($parameter->accepts('kushim/api'));
         self::assertFalse($parameter->accepts(''));
         self::assertSame('{slug}', $parameter->placeholder());
+    }
+
+    /**
+     * The language segment is a route parameter like any other, and it is
+     * validated by the same closed set the application renders in — which is
+     * what makes an unsupported language a routing miss rather than a page.
+     */
+    public function testLocaleParameterAcceptsExactlyTheSupportedLanguages(): void
+    {
+        $parameter = RouteParameter::locale();
+
+        foreach (Locale::supported() as $locale) {
+            self::assertTrue($parameter->accepts($locale->value));
+        }
+
+        foreach (['de', 'es', 'FR', 'EN', 'fr-FR', 'f', 'frr', '', 'xx'] as $rejected) {
+            self::assertFalse($parameter->accepts($rejected), $rejected . ' is not a language this site serves');
+        }
+
+        self::assertSame('{locale}', $parameter->placeholder());
+    }
+
+    public function testAnUnsupportedLocaleCannotBeBuiltIntoAPath(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/not acceptable for parameter "locale"/');
+
+        RouteCatalog::get(RouteCatalog::ABOUT)->toPath(['locale' => 'de']);
     }
 
     public function testUndeclaredPlaceholderIsRejected(): void
@@ -127,7 +159,12 @@ final class RouteDefinitionTest extends TestCase
 
     public function testStaticRouteBuildsItsOwnPath(): void
     {
-        self::assertSame('/about', RouteCatalog::get(RouteCatalog::ABOUT)->toPath());
-        self::assertFalse(RouteCatalog::get(RouteCatalog::ABOUT)->isDynamic());
+        self::assertSame('/fr/about', RouteCatalog::get(RouteCatalog::ABOUT)->toPath(['locale' => 'fr']));
+        self::assertSame('/en/about', RouteCatalog::get(RouteCatalog::ABOUT)->toPath(['locale' => 'en']));
+
+        // The unprefixed entry route is the one that is genuinely static: it
+        // has no language of its own because it exists to choose one.
+        self::assertSame('/about', RouteCatalog::get(RouteCatalog::ABOUT_ENTRY)->toPath());
+        self::assertFalse(RouteCatalog::get(RouteCatalog::ABOUT_ENTRY)->isDynamic());
     }
 }

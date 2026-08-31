@@ -72,7 +72,7 @@ final class ContactFormTest extends TestCase
 
     private static function html(): string
     {
-        $response = self::application()->handle(Request::create('GET', '/contact'));
+        $response = self::application()->handle(Request::create('GET', '/fr/contact'));
 
         self::assertSame(200, $response->status());
 
@@ -235,7 +235,7 @@ final class ContactFormTest extends TestCase
         // refused by it: nothing in this document is what decided that.
         self::assertFalse(self::form($xpath)->hasAttribute('novalidate'));
 
-        $posted = self::application()->handle(Request::create('POST', '/contact'));
+        $posted = self::application()->handle(Request::create('POST', '/fr/contact'));
 
         self::assertSame(403, $posted->status(), 'POST is answered by the server, not by the markup');
         self::assertFalse($posted->isRedirect(), 'An unproven submission must not look accepted');
@@ -258,7 +258,7 @@ final class ContactFormTest extends TestCase
         $form = self::form($xpath);
 
         self::assertSame('post', strtolower($form->getAttribute('method')));
-        self::assertSame('/contact', $form->getAttribute('action'));
+        self::assertSame('/fr/contact', $form->getAttribute('action'));
 
         $text = mb_strtolower(Dom::textOf(Dom::element($xpath, '//main')));
 
@@ -286,8 +286,8 @@ final class ContactFormTest extends TestCase
 
         $status = Dom::textOf(Dom::element($xpath, '//main//*[@id="contact-status"]'));
 
-        self::assertStringContainsString('stored on this site', $status);
-        self::assertStringContainsString('Nothing is forwarded', $status);
+        self::assertStringContainsString('enregistré sur ce site', $status);
+        self::assertStringContainsString("Rien n'est transmis ailleurs automatiquement", $status);
 
         // On a page nobody has submitted from, there is no outcome to report.
         self::assertSame(0, Dom::query($xpath, '//main//*[@id="contact-notice"]')->length);

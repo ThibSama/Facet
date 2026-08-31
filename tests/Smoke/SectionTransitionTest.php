@@ -29,7 +29,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class SectionTransitionTest extends TestCase
 {
-    private const ROUTES = ['/', '/projects', '/about', '/contact', '/login'];
+    private const ROUTES = ['/fr', '/fr/projects', '/fr/about', '/fr/contact', '/login'];
 
     private static function root(): string
     {

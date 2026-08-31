@@ -32,7 +32,7 @@ use PHPUnit\Framework\TestCase;
 final class InteractiveProjectCardsTest extends TestCase
 {
     /** Every route whose cards this contract governs. */
-    private const ROUTES = ['/', '/projects'];
+    private const ROUTES = ['/fr', '/fr/projects'];
 
     private static ?Corpus $corpus = null;
 
@@ -126,7 +126,7 @@ final class InteractiveProjectCardsTest extends TestCase
                     $route . ': the card-wide hit area belongs to the canonical link'
                 );
                 self::assertMatchesRegularExpression(
-                    '#^/projects/[a-z0-9-]+$#',
+                    '#^/(fr|en)/projects/[a-z0-9-]+$#',
                     $anchor->getAttribute('href'),
                     $route . ': the link must address a real case study'
                 );
@@ -162,7 +162,7 @@ final class InteractiveProjectCardsTest extends TestCase
     public function testEveryCardReachesItsCanonicalUrlWithoutJavaScript(): void
     {
         $canonical = array_map(
-            static fn (Project $project): string => '/projects/' . $project->slug()->value(),
+            static fn (Project $project): string => '/fr/projects/' . $project->slug()->value(),
             self::corpus()->projects()
         );
 
@@ -186,7 +186,7 @@ final class InteractiveProjectCardsTest extends TestCase
         self::assertSame(
             $canonical,
             Dom::attributes(
-                Dom::of(Dom::withoutScripts(self::html('/projects'))),
+                Dom::of(Dom::withoutScripts(self::html('/fr/projects'))),
                 '//main//li[contains(@class, "facet-card")]//a[contains(@class, "facet-card__link")]',
                 'href'
             ),
@@ -342,15 +342,34 @@ final class InteractiveProjectCardsTest extends TestCase
     }
 
     /** The `@media (hover: hover)` block, and nothing around it. */
+    /**
+     * The pointer-gated block that governs the card.
+     *
+     * It is found by what it contains rather than by being the first one in
+     * the file. The skin has more than one `(hover: hover)` block — the theme
+     * control has its own — and "the first" was only ever a stand-in for "the
+     * card's" while there happened to be a single one. What this test asserts
+     * is unchanged: the card's hover treatment is behind a pointer capability,
+     * and its focus treatment is not.
+     */
     private static function hoverMediaBlock(string $css): string
     {
-        $start = strpos($css, '@media (hover: hover) {');
-        self::assertIsInt($start);
+        $offset = 0;
 
-        $end = strpos($css, "\n}\n", $start);
-        self::assertIsInt($end);
+        while (($start = strpos($css, '@media (hover: hover) {', $offset)) !== false) {
+            $end = strpos($css, "\n}\n", $start);
+            self::assertIsInt($end, 'An @media (hover: hover) block is not closed');
 
-        return substr($css, $start, $end - $start);
+            $block = substr($css, $start, $end - $start);
+
+            if (str_contains($block, '.facet-card:hover')) {
+                return $block;
+            }
+
+            $offset = $end;
+        }
+
+        self::fail('No @media (hover: hover) block governs .facet-card:hover');
     }
 
     /**

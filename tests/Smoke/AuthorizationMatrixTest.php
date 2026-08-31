@@ -396,7 +396,7 @@ final class AuthorizationMatrixTest extends TestCase
     {
         $this->signIn(Role::Admin);
 
-        foreach (['/', '/projects', '/about', '/contact'] as $path) {
+        foreach (['/fr', '/fr/projects', '/fr/about', '/fr/contact'] as $path) {
             self::assertSame(200, $this->get($path)->status(), $path);
         }
 

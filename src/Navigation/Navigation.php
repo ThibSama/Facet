@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Facet\Navigation;
 
+use Facet\I18n\Locale;
+use Facet\I18n\LocalizedRoutes;
+use Facet\I18n\Translator;
 use Facet\Routing\RouteCatalog;
-use Facet\Routing\RouteDefinition;
 
 /**
  * The primary navigation, derived from the route catalog.
@@ -23,23 +25,26 @@ use Facet\Routing\RouteDefinition;
 final class Navigation
 {
     /**
-     * Sections the shell offers, in display order, mapped to their label.
+     * Sections the shell offers, in display order, mapped to their translation
+     * key.
      *
      * Only routes that are public *and* actually served belong here. Declared
      * but unbuilt routes stay out of the shell rather than advertising a page
-     * that answers 501.
+     * that answers 501. Since PORT-137 the value is a key rather than a word:
+     * the shell's vocabulary is one entry in {@see \Facet\I18n\Translations},
+     * so a section cannot be named in one language and linked in another.
      *
      * @var array<string, string>
      */
     private const PRIMARY = [
-        RouteCatalog::HOME => 'Home',
-        RouteCatalog::PROJECTS_INDEX => 'Projects',
-        RouteCatalog::ABOUT => 'About',
-        RouteCatalog::CONTACT => 'Contact',
+        RouteCatalog::HOME => 'nav.home',
+        RouteCatalog::PROJECTS_INDEX => 'nav.projects',
+        RouteCatalog::ABOUT => 'nav.about',
+        RouteCatalog::CONTACT => 'nav.contact',
     ];
 
-    /** The accessible name of the navigation landmark. */
-    public const PRIMARY_LABEL = 'Primary';
+    /** The translation key for the accessible name of the landmark. */
+    public const PRIMARY_LABEL_KEY = 'nav.label';
 
     /** @var list<NavigationItem> */
     private array $items;
@@ -58,24 +63,28 @@ final class Navigation
     /**
      * Builds the primary navigation for the request currently being rendered.
      *
-     * @param string $path the canonical request path, e.g. "/projects/kushim"
+     * Every href carries the active locale, which is what stops a visitor
+     * reading the English site from being handed a French page by the header:
+     * navigation is built for a language, not merely rendered in one.
+     *
+     * @param string $path the canonical request path, e.g. "/en/projects/kushim"
      */
-    public static function primary(string $path): self
+    public static function primary(Locale $locale, Translator $translator, string $path): self
     {
         $items = [];
 
-        foreach (self::PRIMARY as $name => $label) {
-            $route = RouteCatalog::get($name);
+        foreach (self::PRIMARY as $name => $labelKey) {
+            $href = LocalizedRoutes::path($name, $locale);
 
             $items[] = NavigationItem::create(
                 $name,
-                $label,
-                $route->path(),
-                self::covers($route, $path)
+                $translator->text($labelKey),
+                $href,
+                self::covers($name, $href, $path)
             );
         }
 
-        return new self($items, self::PRIMARY_LABEL);
+        return new self($items, $translator->text(self::PRIMARY_LABEL_KEY));
     }
 
     /**
@@ -113,18 +122,18 @@ final class Navigation
     /**
      * Whether a request path belongs to a route's section.
      *
-     * Home is exact — every path starts with "/", so a prefix rule would light
-     * up the whole shell. Every other section also owns its descendants, which
-     * is what makes "/projects/kushim" highlight Projects.
+     * Home is exact, and since PORT-137 that is load-bearing rather than
+     * incidental: the localized home is "/fr", every other French page is
+     * inside "/fr/", and a prefix rule would light up the whole shell on every
+     * page of the site. Every other section still owns its descendants, which
+     * is what makes "/en/projects/kushim" highlight Projects.
      */
-    private static function covers(RouteDefinition $route, string $path): bool
+    private static function covers(string $routeName, string $href, string $path): bool
     {
-        $base = $route->path();
-
-        if ($path === $base) {
+        if ($path === $href) {
             return true;
         }
 
-        return $base !== '/' && str_starts_with($path, $base . '/');
+        return $routeName !== RouteCatalog::HOME && str_starts_with($path, $href . '/');
     }
 }

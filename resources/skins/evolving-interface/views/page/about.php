@@ -19,6 +19,8 @@
  * @var \Facet\Content\Profile          $profile
  * @var list<\Facet\Content\Skill>      $skills
  * @var list<\Facet\Content\Experience> $experiences
+ * @var \Facet\I18n\Translator          $t
+ * @var \Facet\I18n\Locale              $locale
  */
 
 declare(strict_types=1);
@@ -26,8 +28,12 @@ declare(strict_types=1);
 use Facet\Content\ExperienceKind;
 use Facet\Content\SkillCategory;
 use Facet\Html\Html;
+use Facet\I18n\LocalizedRoutes;
+use Facet\Routing\RouteCatalog;
 
-$title = 'About';
+require dirname(__DIR__) . '/partials/locale-context.php';
+
+$title = $t->text('about.pageTitle');
 
 require dirname(__DIR__) . '/partials/period-label.php';
 
@@ -68,7 +74,7 @@ $mediaRatio = '1 / 1';
 ob_start();
 
 ?>
-<h1 class="text-3xl font-semibold tracking-tight">About <?= $view->text($profile->name()) ?></h1>
+<h1 class="text-3xl font-semibold tracking-tight"><?= $view->text($t->text('about.heading', ['name' => $profile->name()])) ?></h1>
 
 <p class="mt-3 max-w-prose text-lg facet-ink-muted"><?= $view->text($profile->headline()) ?></p>
 
@@ -80,7 +86,7 @@ ob_start();
 
 <?php if ($skillsByCategory !== []): ?>
 <section class="mt-16" aria-labelledby="skill-detail">
-    <h2 id="skill-detail" class="text-2xl font-semibold tracking-tight">Skills in detail</h2>
+    <h2 id="skill-detail" class="text-2xl font-semibold tracking-tight"><?= $view->text($t->text('about.skillsInDetail')) ?></h2>
 
     <?php
     /*
@@ -96,7 +102,7 @@ ob_start();
         <?php if ($categorySkills !== []): ?>
         <section aria-labelledby="skill-detail-<?= $view->attr($category->value) ?>">
             <h3 id="skill-detail-<?= $view->attr($category->value) ?>" class="text-sm font-medium uppercase tracking-wide facet-ink-subtle">
-                <?= $view->text($category->value) ?>
+                <?= $view->text($t->text('content.skillCategory.' . $category->value)) ?>
             </h3>
 
             <dl class="mt-3 space-y-3">
@@ -129,7 +135,7 @@ ob_start();
 
 <?php if ($experiencesByKind !== []): ?>
 <section class="mt-16" aria-labelledby="background">
-    <h2 id="background" class="text-2xl font-semibold tracking-tight">Background</h2>
+    <h2 id="background" class="text-2xl font-semibold tracking-tight"><?= $view->text($t->text('about.background')) ?></h2>
 
     <?php
     /*
@@ -147,7 +153,7 @@ ob_start();
         <?php if ($kindExperiences !== []): ?>
         <section aria-labelledby="background-<?= $view->attr($kind->value) ?>">
             <h3 id="background-<?= $view->attr($kind->value) ?>" class="text-sm font-medium uppercase tracking-wide facet-ink-subtle">
-                <?= $view->text($kind->value) ?>
+                <?= $view->text($t->text('content.experienceKind.' . $kind->value)) ?>
             </h3>
 
             <ul class="mt-3 space-y-3">
@@ -173,7 +179,7 @@ ob_start();
 
 <?php if ($profileLinks !== []): ?>
 <section class="mt-16" aria-labelledby="elsewhere">
-    <h2 id="elsewhere" class="text-2xl font-semibold tracking-tight">Elsewhere</h2>
+    <h2 id="elsewhere" class="text-2xl font-semibold tracking-tight"><?= $view->text($t->text('about.elsewhere')) ?></h2>
 
     <?php
     /*
@@ -198,10 +204,10 @@ ob_start();
 <?php endif; ?>
 
 <section class="mt-16" aria-labelledby="continue">
-    <h2 id="continue" class="text-2xl font-semibold tracking-tight">Continue</h2>
+    <h2 id="continue" class="text-2xl font-semibold tracking-tight"><?= $view->text($t->text('about.continue')) ?></h2>
     <p class="mt-6 flex flex-wrap gap-4">
-        <a class="rounded facet-button px-4 py-2" href="<?= $view->url('/projects') ?>">Read the project write-ups</a>
-        <a class="facet-link underline self-center" href="<?= $view->url('/contact') ?>">Contact page</a>
+        <a class="rounded facet-button px-4 py-2" href="<?= $view->url(LocalizedRoutes::path(RouteCatalog::PROJECTS_INDEX, $locale)) ?>"><?= $view->text($t->text('about.readProjects')) ?></a>
+        <a class="facet-link underline self-center" href="<?= $view->url(LocalizedRoutes::path(RouteCatalog::CONTACT, $locale)) ?>"><?= $view->text($t->text('about.contactPage')) ?></a>
     </p>
 </section>
 <?php

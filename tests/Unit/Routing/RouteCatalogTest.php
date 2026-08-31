@@ -26,25 +26,50 @@ final class RouteCatalogTest extends TestCase
     public static function canonicalRoutes(): array
     {
         return [
-            '/' => [
-                RouteCatalog::HOME, '/', ['GET'],
+            // The public pages, every one of which names its language.
+            '/{locale}' => [
+                RouteCatalog::HOME, '/{locale}', ['GET'],
                 Visibility::Public, DataSource::ContentCorpus, 'page.home',
             ],
-            '/projects' => [
-                RouteCatalog::PROJECTS_INDEX, '/projects', ['GET'],
+            '/{locale}/projects' => [
+                RouteCatalog::PROJECTS_INDEX, '/{locale}/projects', ['GET'],
                 Visibility::Public, DataSource::ContentCorpus, 'page.projects.index',
             ],
-            '/projects/{slug}' => [
-                RouteCatalog::PROJECTS_SHOW, '/projects/{slug}', ['GET'],
+            '/{locale}/projects/{slug}' => [
+                RouteCatalog::PROJECTS_SHOW, '/{locale}/projects/{slug}', ['GET'],
                 Visibility::Public, DataSource::ContentCorpus, 'page.projects.show',
             ],
-            '/about' => [
-                RouteCatalog::ABOUT, '/about', ['GET'],
+            '/{locale}/about' => [
+                RouteCatalog::ABOUT, '/{locale}/about', ['GET'],
                 Visibility::Public, DataSource::ContentCorpus, 'page.about',
             ],
-            '/contact' => [
-                RouteCatalog::CONTACT, '/contact', ['GET', 'POST'],
+            '/{locale}/contact' => [
+                RouteCatalog::CONTACT, '/{locale}/contact', ['GET', 'POST'],
                 Visibility::Public, DataSource::MessageStore, 'page.contact',
+            ],
+
+            // The unprefixed entry routes. GET only: negotiating a language is
+            // a safe read, and a submission is posted to the localized URL the
+            // page it was rendered on already names.
+            '/' => [
+                RouteCatalog::HOME_ENTRY, '/', ['GET'],
+                Visibility::Public, DataSource::None, 'redirect.locale',
+            ],
+            '/projects' => [
+                RouteCatalog::PROJECTS_INDEX_ENTRY, '/projects', ['GET'],
+                Visibility::Public, DataSource::None, 'redirect.locale',
+            ],
+            '/projects/{slug}' => [
+                RouteCatalog::PROJECTS_SHOW_ENTRY, '/projects/{slug}', ['GET'],
+                Visibility::Public, DataSource::None, 'redirect.locale',
+            ],
+            '/about' => [
+                RouteCatalog::ABOUT_ENTRY, '/about', ['GET'],
+                Visibility::Public, DataSource::None, 'redirect.locale',
+            ],
+            '/contact' => [
+                RouteCatalog::CONTACT_ENTRY, '/contact', ['GET'],
+                Visibility::Public, DataSource::None, 'redirect.locale',
             ],
             '/login' => [
                 RouteCatalog::LOGIN, '/login', ['GET', 'POST'],
@@ -109,8 +134,8 @@ final class RouteCatalogTest extends TestCase
         $actual = RouteCatalog::names();
         sort($actual);
 
-        self::assertSame($expected, $actual, 'The catalog must declare exactly the twelve canonical routes');
-        self::assertCount(12, RouteCatalog::all());
+        self::assertSame($expected, $actual, 'The catalog must declare exactly the seventeen canonical routes');
+        self::assertCount(17, RouteCatalog::all());
     }
 
     public function testEveryRouteDeclaresMethodVisibilityDataSourceAndTemplate(): void
@@ -118,7 +143,11 @@ final class RouteCatalogTest extends TestCase
         foreach (RouteCatalog::all() as $name => $route) {
             self::assertNotEmpty($route->methods(), $name . ' must declare at least one method');
             self::assertNotSame('', $route->template(), $name . ' must declare a logical template');
-            self::assertMatchesRegularExpression('/^(page|technical)\./', $route->template(), $name . ' template must be a logical id');
+            self::assertMatchesRegularExpression(
+                '/^(page|technical|redirect)\./',
+                $route->template(),
+                $name . ' template must be a logical id'
+            );
             self::assertSame($name, $route->name());
         }
     }
@@ -229,17 +258,69 @@ final class RouteCatalogTest extends TestCase
         ], $posting);
     }
 
-    public function testProjectShowIsTheOnlyDynamicRoute(): void
+    /**
+     * Which routes carry parameters, and which parameters they carry.
+     *
+     * Since PORT-137 every public page carries its language, so "dynamic" is no
+     * longer a synonym for "a project detail URL". What the contract still
+     * fixes is the exact set: the slug appears on the two project-detail
+     * routes and nowhere else, and the locale appears on the five localized
+     * pages and on none of the entry routes — an entry route with a language in
+     * it would be a second canonical spelling of a page.
+     */
+    public function testEveryRouteDeclaresExactlyTheParametersItsPathUses(): void
     {
-        $dynamic = [];
+        $expected = [
+            RouteCatalog::HOME => ['locale'],
+            RouteCatalog::PROJECTS_INDEX => ['locale'],
+            RouteCatalog::PROJECTS_SHOW => ['locale', 'slug'],
+            RouteCatalog::ABOUT => ['locale'],
+            RouteCatalog::CONTACT => ['locale'],
+            RouteCatalog::PROJECTS_SHOW_ENTRY => ['slug'],
+        ];
+
+        $actual = [];
 
         foreach (RouteCatalog::all() as $name => $route) {
-            if ($route->isDynamic()) {
-                $dynamic[] = $name;
+            if (!$route->isDynamic()) {
+                continue;
             }
+
+            $actual[$name] = array_map(
+                static fn (\Facet\Routing\RouteParameter $p): string => $p->name(),
+                $route->parameters()
+            );
         }
 
-        self::assertSame([RouteCatalog::PROJECTS_SHOW], $dynamic);
+        self::assertSame($expected, $actual);
+    }
+
+    /**
+     * Every unprefixed entry route names the localized route it leads to, and
+     * every localized route is named by exactly one entry route. That pairing
+     * is what the redirect, the language switch and the sitemap all read.
+     */
+    public function testEveryEntryRouteIsPairedWithALocalizedRoute(): void
+    {
+        $pairs = [
+            RouteCatalog::HOME_ENTRY => RouteCatalog::HOME,
+            RouteCatalog::PROJECTS_INDEX_ENTRY => RouteCatalog::PROJECTS_INDEX,
+            RouteCatalog::PROJECTS_SHOW_ENTRY => RouteCatalog::PROJECTS_SHOW,
+            RouteCatalog::ABOUT_ENTRY => RouteCatalog::ABOUT,
+            RouteCatalog::CONTACT_ENTRY => RouteCatalog::CONTACT,
+        ];
+
+        foreach ($pairs as $entry => $localized) {
+            self::assertTrue(RouteCatalog::isEntry($entry));
+            self::assertSame($localized, RouteCatalog::localizedFor($entry));
+        }
+
+        self::assertSame(array_values($pairs), RouteCatalog::localizedNames());
+
+        foreach (array_values($pairs) as $localized) {
+            self::assertFalse(RouteCatalog::isEntry($localized));
+            self::assertNull(RouteCatalog::localizedFor($localized));
+        }
     }
 
     public function testUnknownRouteFailsWithAListOfKnownOnes(): void
@@ -258,7 +339,7 @@ final class RouteCatalogTest extends TestCase
     public function testCatalogDeclaresAContractVersion(): void
     {
         self::assertMatchesRegularExpression('/^\d+\.\d+\.\d+$/', RouteCatalog::VERSION);
-        self::assertSame('1.3.0', RouteCatalog::VERSION);
+        self::assertSame('2.0.0', RouteCatalog::VERSION);
     }
 
     public function testCatalogIsIndependentOfRendering(): void

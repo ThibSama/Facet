@@ -128,7 +128,7 @@ final class TemplateSafetyTest extends TestCase
                 'skin' => SkinRegistry::default()->defaultSkin(),
                 'appName' => 'Facet',
                 'locale' => 'en',
-                'path' => '/projects/hostile',
+                'path' => '/fr/projects/hostile',
                 'project' => self::hostileProject($payload),
             ]
         );

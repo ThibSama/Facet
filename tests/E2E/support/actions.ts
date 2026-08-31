@@ -26,11 +26,17 @@ async function signIn(page: Page, email: string, password: string, landsOn: stri
   await expect(page).toHaveURL(landsOn);
 }
 
-/** Sign out through the shell's own form, and land back on the public site. */
+/**
+ * Sign out through the shell's own form, and land back on the public site.
+ *
+ * The handler redirects to the unprefixed entry route rather than to a language
+ * of its own — what a signed-out visitor reads is not its decision — so the
+ * browser follows one more hop and settles on the canonical localized home.
+ */
 async function signOut(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Sign out' }).click();
 
-  await expect(page).toHaveURL('/');
+  await expect(page).toHaveURL(/\/(fr|en)$/);
 }
 
 /**

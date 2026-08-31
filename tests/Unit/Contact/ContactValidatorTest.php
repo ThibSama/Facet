@@ -106,7 +106,12 @@ final class ContactValidatorTest extends TestCase
 
         self::assertFalse($past->isValid(), $field . ' must be refused at ' . ($max + 1));
         self::assertArrayHasKey($field, $past->errors());
-        self::assertStringContainsString((string) $max, (string) $past->error($field));
+
+        // The verdict is a reason, not a sentence: what a visitor reads is
+        // composed in the language of the page from the reason and the bound.
+        // See Application::contactErrors().
+        self::assertSame($field . '.tooLong', $past->error($field));
+        self::assertSame($max, ContactValidator::MAX_LENGTHS[$field]);
     }
 
     /**

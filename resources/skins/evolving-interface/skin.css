@@ -39,6 +39,40 @@ html[data-skin='evolving-interface'] {
   --facet-ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --facet-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
 
+  /*
+   * The theme control's own sky, and the only palette in the skin that does
+   * not move with the theme.
+   *
+   * Every other colour here is stated twice, once per theme, because every
+   * other component has to survive being looked at in either one. This one
+   * cannot: the control's two halves *are* the two themes, so a day that
+   * restated itself in dark mode would be a picture of the theme you are
+   * already in rather than of the one you are choosing. Day is always day and
+   * night is always night, whichever of them is currently switched on.
+   *
+   * The hues are the reference's, kept because the reference is legible at
+   * this size: a saturated blue against a desaturated charcoal, and a warm
+   * yellow against a cool grey. Neither pair is asked to carry the state on
+   * its own — the body's position and its shape do that — so the palette is
+   * free to be the thing that makes the control pleasant rather than the
+   * thing that makes it comprehensible.
+   */
+  --facet-day-sky: #117af5;
+  --facet-day-sky-high: #63b0ff;
+  --facet-night-sky: #252d37;
+  --facet-night-sky-high: #3d4a59;
+  --facet-sun: #eccd2d;
+  --facet-sun-high: #fbeb9c;
+  --facet-moon: #c9c9c9;
+  --facet-moon-high: #f0f2f4;
+  --facet-moon-spot: #889399;
+  --facet-cloud: #ffffff;
+  /* The underside of the cloud mass, and the far puff behind it. Not grey:
+     a cloud's shadow in a blue sky is blue, and a neutral one at this size
+     reads as smudge rather than as volume. */
+  --facet-cloud-shade: #cfe0f7;
+  --facet-star: #ffffff;
+
   /* Light is layered cool paper, not an inverted dark palette. */
   --facet-light-canvas: #f2f5fb;
   --facet-light-surface: #fbfcff;
@@ -58,6 +92,27 @@ html[data-skin='evolving-interface'] {
   --facet-light-danger-soft: #fee9e7;
   --facet-light-disabled: #566176;
   --facet-light-disabled-surface: #e7eaf1;
+  /* Home's two plates, and the two ends of the light stack. The band is
+     mineral and *recessed* below the canvas; the plate is the page's own paper
+     *raised* above it, and the ending it closes on.
+
+     The plate used to be lavender — a saturated violet surface, which read as
+     a purple panel bolted onto a cool grey page rather than as the page's last
+     movement. It is now the lightest surface on the route: a hair above the
+     canvas it sits on and barely warmer than it, so the finale lifts instead
+     of interrupting. What makes it an ending is not the ground but what is on
+     it — the accent hairline at its top edge, the violet bloom below, the
+     shard, and the one action in full accent. */
+  --facet-light-band: #e3e9f6;
+  --facet-light-plate: #fcfbff;
+  /* How hard the plate's atmosphere is pressed into it. Light carries dark
+     ink, so a wash as dense as dark's would be competing with the words
+     rather than sitting behind them; dark keeps the density it was given.
+     Lighter still now that the ground is white: the bloom is the only violet
+     in the section, and it has to stay atmosphere rather than become a
+     second plate painted over the first. */
+  --facet-light-plate-wash: 7%;
+  --facet-light-plate-glow: 5%;
 
   /* Dark is black/blue/violet with deliberately restrained glow. */
   --facet-dark-canvas: #040611;
@@ -78,6 +133,12 @@ html[data-skin='evolving-interface'] {
   --facet-dark-danger-soft: #421f28;
   --facet-dark-disabled: #929bb2;
   --facet-dark-disabled-surface: #20263a;
+  /* Dark inverts the depth relationship: the band is *raised* off the
+     canvas, and the finale sinks below everything else on the page. */
+  --facet-dark-band: #0b1020;
+  --facet-dark-plate: #0b0e20;
+  --facet-dark-plate-wash: 30%;
+  --facet-dark-plate-glow: 18%;
 
   color-scheme: light;
   --facet-canvas: var(--facet-light-canvas);
@@ -98,6 +159,10 @@ html[data-skin='evolving-interface'] {
   --facet-danger-soft: var(--facet-light-danger-soft);
   --facet-disabled: var(--facet-light-disabled);
   --facet-disabled-surface: var(--facet-light-disabled-surface);
+  --facet-band: var(--facet-light-band);
+  --facet-plate: var(--facet-light-plate);
+  --facet-plate-wash: var(--facet-light-plate-wash);
+  --facet-plate-glow: var(--facet-light-plate-glow);
   --facet-skin-surface: var(--facet-surface);
   --facet-skin-ink: var(--facet-ink);
   --facet-shell-max: 76rem;
@@ -125,6 +190,10 @@ html[data-skin='evolving-interface'] {
     --facet-danger-soft: var(--facet-dark-danger-soft);
     --facet-disabled: var(--facet-dark-disabled);
     --facet-disabled-surface: var(--facet-dark-disabled-surface);
+  --facet-band: var(--facet-dark-band);
+  --facet-plate: var(--facet-dark-plate);
+  --facet-plate-wash: var(--facet-dark-plate-wash);
+  --facet-plate-glow: var(--facet-dark-plate-glow);
     --facet-shadow-sm: 0 1px 0 rgb(255 255 255 / 0.035), 0 16px 42px rgb(0 0 0 / 0.24);
     --facet-shadow-md: 0 24px 72px rgb(0 0 0 / 0.42);
     --facet-glow: 0 0 46px rgb(112 92 255 / 0.1);
@@ -151,12 +220,201 @@ html[data-skin='evolving-interface'][data-theme='dark'] {
   --facet-danger-soft: var(--facet-dark-danger-soft);
   --facet-disabled: var(--facet-dark-disabled);
   --facet-disabled-surface: var(--facet-dark-disabled-surface);
+  --facet-band: var(--facet-dark-band);
+  --facet-plate: var(--facet-dark-plate);
+  --facet-plate-wash: var(--facet-dark-plate-wash);
+  --facet-plate-glow: var(--facet-dark-plate-glow);
   --facet-shadow-sm: 0 1px 0 rgb(255 255 255 / 0.035), 0 16px 42px rgb(0 0 0 / 0.24);
   --facet-shadow-md: 0 24px 72px rgb(0 0 0 / 0.42);
   --facet-glow: 0 0 46px rgb(112 92 255 / 0.1);
 }
 
 html[data-skin='evolving-interface'][data-theme='light'] { color-scheme: light; }
+
+/* ------------------------------------------- crossing between the themes */
+
+/*
+ * The palette, declared to the engine as colour rather than as text.
+ *
+ * A custom property is a string until something says otherwise, and a string
+ * cannot be interpolated — which is why the shared layer's transition, which
+ * animates `background-color` and `color` and `border-color` perfectly well,
+ * left the largest surface on the page jumping: this skin's ground is not a
+ * background-colour at all but a pair of gradients, and a gradient between two
+ * unregistered tokens changes in one frame however long you give it.
+ *
+ * Registering each palette entry as `<color>` fixes that at the root instead
+ * of case by case. Every gradient, every `color-mix`, every shadow tinted with
+ * a token now interpolates because the *token* interpolates, so the page
+ * crosses between the two themes as one surface rather than as a list of
+ * properties somebody remembered to name.
+ *
+ * The initial values are the light palette. Nothing reads them — every one of
+ * these is assigned a few lines above, in both themes — but a registration
+ * that inherits must declare one, and the light theme is the honest default
+ * for a document that has said nothing.
+ *
+ * Only colours are registered. The wash and glow percentages, the shadow
+ * lists and the geometry stay ordinary custom properties: an engine that
+ * cannot interpolate them is not improved by being told their type.
+ */
+@property --facet-canvas {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #f2f5fb;
+}
+
+@property --facet-surface {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #fbfcff;
+}
+
+@property --facet-surface-raised {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ffffff;
+}
+
+@property --facet-surface-elevated {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #eef2fb;
+}
+
+@property --facet-ink {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #111827;
+}
+
+@property --facet-ink-muted {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #445168;
+}
+
+@property --facet-ink-subtle {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #5e6980;
+}
+
+@property --facet-border {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #d5dced;
+}
+
+@property --facet-border-strong {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #8793aa;
+}
+
+@property --facet-accent {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #4c36c7;
+}
+
+@property --facet-accent-hover {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #3922ad;
+}
+
+@property --facet-accent-soft {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #e9e5ff;
+}
+
+@property --facet-accent-ink {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ffffff;
+}
+
+@property --facet-focus {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #175cd3;
+}
+
+@property --facet-danger {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #b42318;
+}
+
+@property --facet-danger-soft {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #fee9e7;
+}
+
+@property --facet-disabled {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #566176;
+}
+
+@property --facet-disabled-surface {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #e7eaf1;
+}
+
+@property --facet-band {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #e3e9f6;
+}
+
+@property --facet-plate {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #fcfbff;
+}
+
+/*
+ * ...and the crossing itself, which happens only while the shared runtime says
+ * a visitor asked for it. The duration matches the shared layer's element
+ * transition exactly — one change, one length — and sits just inside the
+ * control's own 360ms so the capsule finishes last.
+ *
+ * Under reduced motion this block does not exist and the attribute is never
+ * set; the palette changes in one frame, which is what that preference asks
+ * for.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-skin='evolving-interface'][data-facet-theme-shift] {
+    transition-property:
+    --facet-canvas,
+    --facet-surface,
+    --facet-surface-raised,
+    --facet-surface-elevated,
+    --facet-ink,
+    --facet-ink-muted,
+    --facet-ink-subtle,
+    --facet-border,
+    --facet-border-strong,
+    --facet-accent,
+    --facet-accent-hover,
+    --facet-accent-soft,
+    --facet-accent-ink,
+    --facet-focus,
+    --facet-danger,
+    --facet-danger-soft,
+    --facet-disabled,
+    --facet-disabled-surface,
+    --facet-band,
+    --facet-plate;
+    transition-duration: 320ms;
+    transition-timing-function: var(--facet-ease-standard);
+  }
+}
 
 html[data-skin='evolving-interface'] body {
   font-family: var(--facet-font-sans);
@@ -219,16 +477,27 @@ html[data-skin='evolving-interface'] .facet-header {
   backdrop-filter: blur(18px);
 }
 
+/*
+ * The header, rebalanced against the page it now sits above.
+ *
+ * Nothing about it is different in kind. The route list is the route list, the
+ * brand is still the home link the discovery gesture is attached to, and the
+ * collapse still collapses. What changed is scale: the sections below were
+ * reset in display type and the header kept the proportions it had when they
+ * were not, which left it reading as a strip the page had outgrown rather than
+ * as its top edge. Half a rem of height, a step of nav type and a wider gutter
+ * between the control and the links is the whole adjustment.
+ */
 html[data-skin='evolving-interface'] .facet-header__inner {
-  min-height: 4.75rem;
-  gap: var(--facet-space-2) var(--facet-space-4);
-  padding-block: var(--facet-space-3);
+  min-height: 5.25rem;
+  gap: var(--facet-space-2) var(--facet-space-5);
+  padding-block: var(--facet-space-4);
 }
 
 html[data-skin='evolving-interface'] .facet-brand {
-  font-size: var(--facet-text-lg);
+  font-size: clamp(1.12rem, 1.04rem + 0.34vw, 1.32rem);
   font-weight: 700;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.028em;
 }
 
 html[data-skin='evolving-interface'] .facet-brand::before {
@@ -243,30 +512,99 @@ html[data-skin='evolving-interface'] .facet-brand::before {
   transform: rotate(45deg);
 }
 
+/*
+ * ---- the route list ------------------------------------------------------
+ *
+ * One idea, stated three times at three strengths: a line under the word.
+ *
+ * What this replaces was a set of pills — a soft grey ground on hover, a
+ * lilac ground on the current route — and the trouble with them was not that
+ * they were wrong but that they were anyone's. Four tinted capsules is the
+ * default any framework gives you, and next to a control that draws its own
+ * sky it read as the one part of the header nobody had looked at.
+ *
+ * A line is the header's own vocabulary: the brand's shard, the plate's
+ * hairline, the accent rule under the section titles. So the nav gets the
+ * same mark, sized down. It is drawn once, on `::after`, and the three states
+ * differ only in how much of it there is:
+ *
+ * - at rest, none. The word carries itself, in muted ink, and the header
+ *   stays as quiet as it was;
+ * - on hover or focus, the line arrives — scaled out from the centre, tapered
+ *   at both ends so it reads as a mark rather than as a border, and stopping
+ *   short of the word's full width;
+ * - on the current route, it is fully there and fully accent, and the word
+ *   goes to accent with it.
+ *
+ * No ground, no shadow, no glass, nothing that grows the header. The links
+ * keep their 44px target and their weight; what changed is that hovering one
+ * now does something the rest of the page would recognise.
+ */
 html[data-skin='evolving-interface'] .facet-nav__list { gap: var(--facet-space-1); }
 
 html[data-skin='evolving-interface'] .facet-nav__link {
+  position: relative;
   min-height: 2.75rem;
-  padding: 0.55rem 0.8rem;
-  border-radius: var(--facet-radius-pill);
+  padding: 0.6rem 0.68rem;
+  border-radius: var(--facet-radius-sm);
   color: var(--facet-ink-muted);
-  font-size: var(--facet-text-sm);
+  font-size: 0.9375rem;
   font-weight: 700;
+  letter-spacing: -0.006em;
 }
 
-html[data-skin='evolving-interface'] .facet-nav__link:hover {
+/*
+ * The mark. Tapered rather than flat — a rule that ends in a hard edge on
+ * both sides is a border, and a border under one item in a row of four is a
+ * tab. It is also inset from the link's own box, so the line belongs to the
+ * word rather than to the padding around it.
+ */
+html[data-skin='evolving-interface'] .facet-nav__link::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0.62rem;
+  inset-block-end: 0.5rem;
+  height: 0.125rem;
+  border-radius: var(--facet-radius-pill);
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    var(--facet-accent) 28%,
+    var(--facet-accent) 72%,
+    transparent
+  );
+  opacity: 0;
+  scale: 0.3 1;
+  transition:
+    opacity var(--facet-duration-fast) var(--facet-ease-standard),
+    scale var(--facet-duration-base) var(--facet-ease-emphasized);
+}
+
+html[data-skin='evolving-interface'] .facet-nav__link:hover,
+html[data-skin='evolving-interface'] .facet-nav__link:focus-visible {
   color: var(--facet-ink);
-  background: var(--facet-surface-elevated);
+  background: none;
   text-decoration: none;
+}
+
+html[data-skin='evolving-interface'] .facet-nav__link:hover::after,
+html[data-skin='evolving-interface'] .facet-nav__link:focus-visible::after {
+  opacity: 0.62;
+  scale: 0.82 1;
 }
 
 html[data-skin='evolving-interface'] .facet-nav__link[aria-current='page'] {
   color: var(--facet-accent);
-  background: var(--facet-accent-soft);
+  background: none;
   text-decoration: none;
 }
 
-html[data-skin='evolving-interface'] :where(.facet-nav-toggle, .facet-theme-toggle) {
+html[data-skin='evolving-interface'] .facet-nav__link[aria-current='page']::after {
+  opacity: 1;
+  scale: 1 1;
+}
+
+html[data-skin='evolving-interface'] .facet-nav-toggle {
   border-color: var(--facet-border);
   border-radius: var(--facet-radius-pill);
   background: var(--facet-surface-raised);
@@ -274,9 +612,422 @@ html[data-skin='evolving-interface'] :where(.facet-nav-toggle, .facet-theme-togg
   font-weight: 700;
 }
 
-html[data-skin='evolving-interface'] :where(.facet-nav-toggle, .facet-theme-toggle):hover {
+html[data-skin='evolving-interface'] .facet-nav-toggle:hover {
   border-color: var(--facet-border-strong);
   background: var(--facet-surface-elevated);
+}
+
+/*
+ * The control is not a nav item, so it does not sit in the nav's rhythm. The
+ * header's own gap would put it one small space from "Home", close enough to
+ * read as a fifth thing in the list; this is the separation that says it
+ * belongs to the shell instead.
+ */
+html[data-skin='evolving-interface'] .facet-header__inner .facet-theme-toggle {
+  margin-inline-end: var(--facet-space-2);
+}
+
+/* ------------------------------------------------------ the language switch */
+
+/*
+ * FR · EN, as small as two words can be and still be a target.
+ *
+ * The switch is the only header control that is never `hidden`: it is a pair of
+ * anchors, so it works before the runtime arrives and works if the runtime never
+ * arrives. It is drawn as one capsule with a hairline between the two marks so
+ * that it reads as a single control rather than as two more links appended to
+ * the navigation, and it is deliberately quieter than the theme toggle — a
+ * language is chosen once, a theme is played with.
+ */
+html[data-skin='evolving-interface'] .facet-lang {
+  flex: 0 0 auto;
+}
+
+html[data-skin='evolving-interface'] .facet-lang__list {
+  gap: 0;
+  border: var(--facet-border-width) solid var(--facet-border);
+  border-radius: var(--facet-radius-pill);
+  background: var(--facet-surface-raised);
+  box-shadow: var(--facet-shadow-sm);
+  overflow: hidden;
+}
+
+/* The hairline between the two marks. A border on the item rather than on the
+   link, so the link's own focus ring is never clipped by it. */
+html[data-skin='evolving-interface'] .facet-lang__item + .facet-lang__item {
+  border-inline-start: var(--facet-border-width) solid var(--facet-border);
+}
+
+html[data-skin='evolving-interface'] .facet-lang__link {
+  /* The same 44px square the collapse control and the theme toggle are given.
+     A language is chosen with a thumb as often as with a pointer, and a control
+     that is quieter than its neighbours should not also be smaller to hit. */
+  min-height: 2.75rem;
+  min-width: 2.5rem;
+  padding-inline: var(--facet-space-3);
+  color: var(--facet-ink-subtle);
+  font-size: var(--facet-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  transition: color var(--facet-duration-fast) var(--facet-ease-standard),
+    background-color var(--facet-duration-fast) var(--facet-ease-standard);
+}
+
+html[data-skin='evolving-interface'] .facet-lang__link:hover {
+  color: var(--facet-ink);
+  background: var(--facet-surface-elevated);
+  text-decoration: none;
+}
+
+/*
+ * The language in effect. It keeps a ground of its own as well as full ink, so
+ * the state survives greyscale and it is legible which half of the capsule you
+ * are in without reading either word.
+ */
+html[data-skin='evolving-interface'] .facet-lang__link[aria-current='true'] {
+  color: var(--facet-ink);
+  background: var(--facet-accent-soft);
+  text-decoration: none;
+}
+
+/* The switch sits with the shell's controls, not in the navigation's rhythm. */
+html[data-skin='evolving-interface'] .facet-header__inner .facet-lang {
+  margin-inline-end: var(--facet-space-1);
+}
+
+/* ------------------------------------------------------- the theme control */
+
+/*
+ * A day and a night, 52 pixels wide.
+ *
+ * What this replaces was a pill with the word "Dark theme" set in it — a
+ * control that told you what it would do and was, at the top of a page whose
+ * sections are set in six-rem type, the loudest sentence in the header. The
+ * word is still there; it is simply no longer set in ink. What is drawn
+ * instead is the thing the word described.
+ *
+ * Four layers, and one of them moves.
+ *
+ * - the sky, which is the capsule's own ground and crossfades between two
+ *   gradients;
+ * - the clouds, which belong to the day and leave downwards when it ends;
+ * - the stars, which belong to the night and settle into it;
+ * - the body, which crosses the track and is a sun at one end and a moon at
+ *   the other.
+ *
+ * All of it is CSS. The clouds and the stars are background-images on two
+ * empty spans — layered radial gradients, positioned in the same rem grid the
+ * capsule is built on — rather than elements, so the whole scene is eight
+ * boxes' worth of paint on four spans and costs the document no script, no
+ * canvas, no asset request and no dependency. The reference this is adapted
+ * from is a 369x145 Figma component with bitmap clouds; this is 52x28 and
+ * draws its own.
+ *
+ * Nothing here runs on a frame loop. The state is `aria-pressed` on the
+ * button, which the theme module already maintained and already synchronised
+ * with the document's `data-theme` and with the system preference; every rule
+ * below is a transition keyed off that one attribute. The control is a view
+ * of the theme contract, and it changed nothing about it.
+ */
+html[data-skin='evolving-interface'] .facet-theme-toggle {
+  /*
+   * How far the clouds fall and the stars rise. Named rather than inlined
+   * because reduced motion sets both to zero, and a preference that has to
+   * find and cancel four separate translations is a preference that will
+   * eventually miss one.
+   */
+  --facet-toggle-drift: 0.55rem;
+  --facet-toggle-duration: var(--facet-duration-slow);
+  /* The body is the thing the eye follows, so it gets the easing with the
+     overshoot and the flat layers behind it get the plain one. */
+  --facet-toggle-ease: var(--facet-ease-emphasized);
+}
+
+html[data-skin='evolving-interface'] .facet-theme-toggle__scene {
+  border-color: color-mix(in srgb, var(--facet-ink) 22%, transparent);
+  background-color: var(--facet-day-sky);
+  background-image: linear-gradient(
+    170deg,
+    var(--facet-day-sky-high),
+    var(--facet-day-sky) 62%
+  );
+  /* Dimension, kept from the reference and spent where it survives being
+     shrunk: one inset highlight along the top edge, one inset shade along the
+     bottom, and a single soft drop below the capsule. */
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 0.34),
+    inset 0 -2px 4px rgb(4 8 20 / 0.24),
+    0 1px 3px rgb(4 8 20 / 0.22);
+  transition:
+    background-color var(--facet-toggle-duration) var(--facet-ease-standard),
+    background-image var(--facet-toggle-duration) var(--facet-ease-standard),
+    box-shadow var(--facet-toggle-duration) var(--facet-ease-standard);
+}
+
+html[data-skin='evolving-interface'] .facet-theme-toggle[aria-pressed='true'] .facet-theme-toggle__scene {
+  background-color: var(--facet-night-sky);
+  background-image: linear-gradient(
+    170deg,
+    var(--facet-night-sky-high),
+    var(--facet-night-sky) 58%
+  );
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 0.12),
+    inset 0 -2px 5px rgb(0 0 0 / 0.42),
+    0 1px 3px rgb(0 0 0 / 0.34);
+}
+
+/*
+ * The body: a sun at the day end, a moon at the night end.
+ *
+ * The difference between them is not only the hue. The sun is evenly lit and
+ * carries a halo; the moon is lit from one side and carries three craters. A
+ * reader who sees neither colour still sees a plain disc become a mottled one
+ * as it crosses — which is the redundant encoding the state needs, since a
+ * capsule this small cannot spend its legibility on hue alone.
+ */
+html[data-skin='evolving-interface'] .facet-theme-toggle__orb {
+  background-color: var(--facet-sun);
+  background-image: radial-gradient(
+    circle at 34% 30%,
+    var(--facet-sun-high),
+    var(--facet-sun) 72%
+  );
+  box-shadow:
+    0 0 0.5rem color-mix(in srgb, var(--facet-sun) 62%, transparent),
+    0 1px 2px rgb(4 8 20 / 0.3);
+  transition:
+    translate var(--facet-toggle-duration) var(--facet-toggle-ease),
+    background-color var(--facet-toggle-duration) var(--facet-ease-standard),
+    background-image var(--facet-toggle-duration) var(--facet-ease-standard),
+    box-shadow var(--facet-toggle-duration) var(--facet-ease-standard);
+}
+
+html[data-skin='evolving-interface'] .facet-theme-toggle[aria-pressed='true'] .facet-theme-toggle__orb {
+  background-color: var(--facet-moon);
+  background-image: radial-gradient(
+    circle at 32% 28%,
+    var(--facet-moon-high),
+    var(--facet-moon) 78%
+  );
+  box-shadow:
+    0 0 0.4rem color-mix(in srgb, var(--facet-moon) 38%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.42);
+}
+
+/*
+ * The craters, drawn on the body itself rather than beside it so they can
+ * never separate from it mid-travel. Three of them, from one gradient layer
+ * each, and they are simply not there during the day.
+ */
+html[data-skin='evolving-interface'] .facet-theme-toggle__orb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image:
+    radial-gradient(circle at 50% 50%, var(--facet-moon-spot) 48%, transparent 52%),
+    radial-gradient(circle at 50% 50%, var(--facet-moon-spot) 48%, transparent 52%),
+    radial-gradient(circle at 50% 50%, var(--facet-moon-spot) 48%, transparent 52%);
+  background-size: 0.34rem 0.34rem, 0.22rem 0.22rem, 0.26rem 0.26rem;
+  background-position: 0.22rem 0.28rem, 0.66rem 0.24rem, 0.5rem 0.72rem;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity var(--facet-toggle-duration) var(--facet-ease-standard);
+}
+
+html[data-skin='evolving-interface'] .facet-theme-toggle[aria-pressed='true'] .facet-theme-toggle__orb::after {
+  opacity: 0.72;
+}
+
+/*
+ * The clouds. They sit under the day, on the side the sun is not on, and when
+ * the night arrives they fall out of the capsule rather than dissolving in
+ * place — the reference has them leave the frame, and leaving reads as
+ * weather where fading reads as a bug.
+ *
+ * One mass, five layers, and not a single one of them the same size as
+ * another.
+ *
+ * What was here first was four equal-ish discs in a row, and at 52 pixels
+ * that is exactly what it looked like: circle, circle, circle. A cloud is not
+ * a row of circles — it is a flat-bottomed body with lumps on top, and the
+ * three things that make it read as one are unequal lobes, enough overlap
+ * that no lobe shows a full arc, and a base that joins them along a line
+ * rather than a curve. So:
+ *
+ * - a crown lobe, the smallest, set off-centre so the silhouette is not
+ *   symmetrical about anything;
+ * - a main lobe, the largest, low and left;
+ * - a shoulder lobe to its right, two-thirds the size, overlapping it by
+ *   more than half its width;
+ * - a wide, shallow ellipse under all three, which is the flat bottom the
+ *   lobes sit on and the only layer that touches the capsule's lower edge —
+ *   it is clipped there, which is what stops the mass reading as a floating
+ *   blob;
+ * - a small, faint, cooler puff further up and right, behind everything,
+ *   which gives the scene one plane of depth for the cost of one gradient.
+ *
+ * The tonal split is the same idea in colour: the lobes are white, the base
+ * and the far puff take `--facet-cloud-shade`, a blue-white a few steps down,
+ * so the underside of the mass sits in the sky rather than on it. Every edge
+ * is a two-stop fade rather than a hard cut, which at this size is the whole
+ * difference between weather and a sticker.
+ */
+html[data-skin='evolving-interface'] .facet-theme-toggle__clouds {
+  /*
+   * Every layer is sized `closest-side`, which is the difference between a
+   * cloud and a swatch: the default sizing puts the gradient's far end at the
+   * corner of its own box, so a stop that fades out at ninety per cent is
+   * still solid where the box's edges cut it, and the lobe arrives as a
+   * rectangle with a soft middle. Ending at the nearest side lets each shape
+   * finish inside its own box.
+   */
+  background-image:
+    radial-gradient(
+      circle closest-side at 50% 50%,
+      var(--facet-cloud) 58%,
+      color-mix(in srgb, var(--facet-cloud) 72%, transparent) 82%,
+      transparent 100%
+    ),
+    radial-gradient(
+      circle closest-side at 50% 48%,
+      var(--facet-cloud) 62%,
+      color-mix(in srgb, var(--facet-cloud) 76%, transparent) 84%,
+      transparent 100%
+    ),
+    radial-gradient(
+      circle closest-side at 50% 50%,
+      var(--facet-cloud) 58%,
+      color-mix(in srgb, var(--facet-cloud) 72%, transparent) 82%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse closest-side at 50% 40%,
+      var(--facet-cloud) 52%,
+      var(--facet-cloud-shade) 76%,
+      color-mix(in srgb, var(--facet-cloud-shade) 52%, transparent) 90%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse closest-side at 50% 50%,
+      color-mix(in srgb, var(--facet-cloud-shade) 78%, transparent) 46%,
+      color-mix(in srgb, var(--facet-cloud-shade) 32%, transparent) 76%,
+      transparent 100%
+    );
+  background-size:
+    0.5rem 0.5rem,
+    1rem 1rem,
+    0.74rem 0.74rem,
+    1.6rem 0.8rem,
+    0.66rem 0.36rem;
+  background-position:
+    2.15rem 0.67rem,
+    1.66rem 0.74rem,
+    2.37rem 0.91rem,
+    1.61rem 1.12rem,
+    2.57rem 0.34rem;
+  background-repeat: no-repeat;
+  transition:
+    translate var(--facet-toggle-duration) var(--facet-ease-standard),
+    opacity var(--facet-toggle-duration) var(--facet-ease-standard);
+}
+
+html[data-skin='evolving-interface'] .facet-theme-toggle[aria-pressed='true'] .facet-theme-toggle__clouds {
+  translate: 0 var(--facet-toggle-drift);
+  opacity: 0;
+}
+
+/*
+ * The stars, on the side the moon is not on. They arrive slightly after the
+ * sky has finished darkening — the one stagger in the scene, and the reason
+ * the switch reads as a sequence rather than as four things happening at once.
+ */
+html[data-skin='evolving-interface'] .facet-theme-toggle__stars {
+  background-image:
+    radial-gradient(circle at 50% 50%, var(--facet-star) 45%, transparent 50%),
+    radial-gradient(circle at 50% 50%, var(--facet-star) 45%, transparent 50%),
+    radial-gradient(circle at 50% 50%, var(--facet-star) 45%, transparent 50%),
+    radial-gradient(
+      circle at 50% 50%,
+      color-mix(in srgb, var(--facet-star) 70%, transparent) 45%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 50% 50%,
+      color-mix(in srgb, var(--facet-star) 70%, transparent) 45%,
+      transparent 50%
+    );
+  background-size:
+    0.16rem 0.16rem,
+    0.13rem 0.13rem,
+    0.16rem 0.16rem,
+    0.11rem 0.11rem,
+    0.11rem 0.11rem;
+  background-position: 0.42rem 0.46rem, 0.95rem 1.05rem, 1.42rem 0.38rem, 0.66rem 1.22rem, 1.52rem 1.02rem;
+  background-repeat: no-repeat;
+  translate: 0 calc(-1 * var(--facet-toggle-drift));
+  opacity: 0;
+  transition:
+    translate var(--facet-toggle-duration) var(--facet-ease-standard),
+    opacity var(--facet-toggle-duration) var(--facet-ease-standard);
+}
+
+html[data-skin='evolving-interface'] .facet-theme-toggle[aria-pressed='true'] .facet-theme-toggle__stars {
+  translate: 0 0;
+  opacity: 1;
+  transition-delay: 80ms;
+}
+
+/*
+ * Hover, reinterpreted rather than copied.
+ *
+ * The reference ships a separate hover variant per state. What it does with
+ * them is unrecoverable — the file has the frames and no timeline between
+ * them — so this is an adaptation: the body leans a few pixels toward the
+ * middle, as if it were already on its way, and the capsule lifts. Two
+ * pixels, deliberately: a body that moved far enough to look half-switched
+ * would make the state ambiguous, which is the one thing a control whose
+ * whole job is to report a state cannot afford.
+ *
+ * Behind `hover: hover`, so a touch device never sees a state it cannot
+ * leave.
+ */
+@media (hover: hover) {
+  html[data-skin='evolving-interface'] .facet-theme-toggle:hover .facet-theme-toggle__orb {
+    translate: 0.14rem -50%;
+  }
+
+  html[data-skin='evolving-interface'] .facet-theme-toggle[aria-pressed='true']:hover .facet-theme-toggle__orb {
+    translate: calc(var(--facet-toggle-travel) - 0.14rem) -50%;
+  }
+
+  html[data-skin='evolving-interface'] .facet-theme-toggle:hover .facet-theme-toggle__scene {
+    border-color: color-mix(in srgb, var(--facet-ink) 34%, transparent);
+    box-shadow:
+      inset 0 1px 1px rgb(255 255 255 / 0.34),
+      inset 0 -2px 4px rgb(4 8 20 / 0.24),
+      0 2px 7px rgb(4 8 20 / 0.3);
+  }
+
+  html[data-skin='evolving-interface'] .facet-theme-toggle[aria-pressed='true']:hover .facet-theme-toggle__scene {
+    box-shadow:
+      inset 0 1px 1px rgb(255 255 255 / 0.12),
+      inset 0 -2px 5px rgb(0 0 0 / 0.42),
+      0 2px 7px rgb(0 0 0 / 0.42);
+  }
+}
+
+/* The focus ring is drawn on the capsule, not on the 44px box around it, so
+   the outline lands on the thing the reader can see. */
+html[data-skin='evolving-interface'] .facet-theme-toggle:focus-visible {
+  outline: none;
+}
+
+html[data-skin='evolving-interface'] .facet-theme-toggle:focus-visible .facet-theme-toggle__scene {
+  outline: 3px solid var(--facet-focus);
+  outline-offset: 3px;
 }
 
 html[data-skin='evolving-interface'] .facet-main {
@@ -290,6 +1041,48 @@ html[data-skin='evolving-interface'] .facet-footer {
 }
 
 html[data-skin='evolving-interface'] .facet-footer__inner { padding-block: var(--facet-space-6); }
+
+/*
+ * The footer, at every width, for as long as it has nothing of its own to say.
+ *
+ * What it renders is the brand on the left and the four primary routes on the
+ * right, which on a wide screen is the header again — same words, same order,
+ * same alignment, at the other end of the page. A reader who scrolls to the
+ * bottom is shown the navigation they have had pinned above them the whole
+ * time, and is shown it in a shape that reads as a second banner. That is not
+ * a way out they did not have; it is the same way out, restated.
+ *
+ * A footer earns its place by carrying what a header cannot: a legal notice, a
+ * privacy statement, an imprint, a colophon, the small print of a site. This
+ * one has none of those, because the site has none of those — and inventing a
+ * "© 2026" or a link to a page that does not exist would be worse than the
+ * duplication, since a footer that lies is a footer that has to be unpicked
+ * later. So the enhanced page ends where its content ends.
+ *
+ * This is explicitly temporary, and the invariant that ends it is written
+ * down: when legal, privacy or any other footer-specific content exists, a
+ * compact real footer must come back — on desktop and on mobile both, and not
+ * as a repeat of the navigation. See docs/decisions/PORT-138-shell-and-theme-
+ * toggle.md.
+ *
+ * Two things about *how* it is hidden are load-bearing.
+ *
+ * `display: none` on the landmark rather than a visual hide, because a
+ * visually hidden footer is four links that are still reachable by tab, still
+ * announced, and still land a reader somewhere they cannot see. Nothing here
+ * should be in the tab order if none of it is on the screen.
+ *
+ * And the gate is `[data-facet='ready']`, which the shared runtime sets only
+ * once the header's own collapse is mounted and working. Without JavaScript
+ * this rule never applies at all: the server's footer renders in full, with
+ * its four plain anchors, and a reader at the bottom of a long page with no
+ * script running still has a way out — which is the only circumstance in which
+ * repeating the navigation was ever doing work. The markup is untouched; the
+ * architecture is intact; one declaration takes it off the enhanced page.
+ */
+html[data-skin='evolving-interface'][data-facet='ready'] .facet-footer {
+  display: none;
+}
 
 html[data-skin='evolving-interface'] .facet-link {
   color: var(--facet-accent);
@@ -716,10 +1509,25 @@ html[data-skin='evolving-interface'] [data-facet-ribbon='live'] {
    * The strip does not stop at an edge, it fades out at one — otherwise the
    * loop reads as a list being cut off rather than as one that continues.
    */
+  /*
+   * The two edges are given separate lengths rather than one shared one.
+   *
+   * They are not the same problem. The right edge is where the strip leaves
+   * for somewhere the reader cannot see, and a long ramp is what sells that:
+   * the list continues, it is not cut off. The left edge is where the strip
+   * *arrives*, and it arrives next to a fixed category label — so a ramp of
+   * the same length spends its whole first inch dimming the chips closest to
+   * the word, which reads as the label eating them rather than as the strip
+   * emerging from behind it.
+   *
+   * `--facet-ribbon-fade` still sets both, so nothing that only states it
+   * changes behaviour. `--facet-ribbon-fade-start` overrides the entry edge
+   * where a shorter one is the honest one.
+   */
   mask-image: linear-gradient(
     90deg,
     transparent,
-    #000 var(--facet-ribbon-fade, 3rem),
+    #000 var(--facet-ribbon-fade-start, var(--facet-ribbon-fade, 3rem)),
     #000 calc(100% - var(--facet-ribbon-fade, 3rem)),
     transparent
   );
@@ -775,12 +1583,12 @@ html[data-skin='evolving-interface'] .facet-timeline > li::before {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--facet-accent) 10%, transparent);
 }
 
-html[data-skin='evolving-interface'] body[data-route^='/projects/'] .facet-main > .facet-media {
+html[data-skin='evolving-interface'] body[data-facet-route='projects.show'] .facet-main > .facet-media {
   max-width: 58rem;
   margin-top: var(--facet-space-6);
 }
 
-html[data-skin='evolving-interface'] body[data-route^='/projects/'] .facet-main > section {
+html[data-skin='evolving-interface'] body[data-facet-route='projects.show'] .facet-main > section {
   max-width: 52rem;
 }
 
@@ -822,14 +1630,14 @@ html[data-skin='evolving-interface'] .facet-private-session {
   border-color: var(--facet-border);
 }
 
-html[data-skin='evolving-interface'] body[data-route='/admin'],
-html[data-skin='evolving-interface'] body[data-route='/admin/messages'],
-html[data-skin='evolving-interface'] body[data-route='/client'] {
+html[data-skin='evolving-interface'] body[data-facet-route='admin.dashboard'],
+html[data-skin='evolving-interface'] body[data-facet-route='admin.messages'],
+html[data-skin='evolving-interface'] body[data-facet-route='client'] {
   background: linear-gradient(180deg, var(--facet-surface), var(--facet-canvas));
 }
 
-html[data-skin='evolving-interface'] body[data-route='/admin'] .facet-main,
-html[data-skin='evolving-interface'] body[data-route='/client'] .facet-main {
+html[data-skin='evolving-interface'] body[data-facet-route='admin.dashboard'] .facet-main,
+html[data-skin='evolving-interface'] body[data-facet-route='client'] .facet-main {
   max-width: 58rem;
 }
 
@@ -880,6 +1688,1028 @@ html[data-skin='evolving-interface'] .facet-message .whitespace-pre-wrap {
 }
 
 html[data-skin='evolving-interface'] .facet-inline-form { flex-wrap: wrap; }
+
+/* ==========================================================================
+ * PORT-136 — the home composition.
+ *
+ * Everything below is scoped to the home route, either by `body[data-facet-route]`
+ * or by a class no other view renders. That is deliberate: the header, the
+ * footer and every secondary route are shared, and a checkpoint that redesigns
+ * the home page must not redesign `/about` by accident.
+ *
+ * The page's width strategy is stated once, here. `.facet-main` gives up the
+ * shell on this route and becomes the full width of the viewport; each section
+ * then takes the width its content deserves — a measured column for the hero,
+ * the work and the journey, and the viewport's own edges for the two bands.
+ * That is what lets the skills strip run off the side of the page and the
+ * finale sit under the fold as a surface rather than as a paragraph.
+ * ========================================================================== */
+
+html[data-skin='evolving-interface'] body[data-facet-route='home'] {
+  --facet-home-max: 84rem;
+  --facet-home-gutter: clamp(1.25rem, 4.5vw, 4rem);
+  --facet-home-rhythm: clamp(4.5rem, 9vw, 9.5rem);
+}
+
+/*
+ * The route's own canvas. `overflow-x: clip` is a guard rather than a layout
+ * device — nothing below is sized in viewport units, so nothing should be able
+ * to reach past the edge; clipping (which, unlike `hidden`, creates no scroll
+ * container and no scroll port) means that if something ever does, it is a
+ * visual defect and not a horizontal scrollbar on every page of the site.
+ */
+html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-main {
+  position: relative;
+  max-width: none;
+  padding-block: 0;
+  padding-inline: 0;
+  overflow-x: clip;
+}
+
+/*
+ * The atmosphere behind the first screen.
+ *
+ * One element, painted under everything, sized in the page's own units and
+ * never animated. It is what makes the hero read as a lit composition instead
+ * of a paragraph next to a rectangle, and it is why the signature visual can
+ * afford to lose its border and its drop shadow below.
+ */
+html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-main::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: clamp(32rem, 78vh, 60rem);
+  background:
+    radial-gradient(72% 58% at 76% 2%, color-mix(in srgb, var(--facet-accent) 20%, transparent), transparent 68%),
+    radial-gradient(52% 44% at 8% 0%, color-mix(in srgb, var(--facet-focus) 9%, transparent), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--facet-surface) 70%, transparent), transparent 78%);
+  pointer-events: none;
+}
+
+/* The measured column every non-band section is set in. */
+html[data-skin='evolving-interface'] .facet-home-shell {
+  width: 100%;
+  max-width: var(--facet-home-max);
+  margin-inline: auto;
+  padding-inline: var(--facet-home-gutter);
+}
+
+/*
+ * The shared section rhythm — a top margin, a top padding and a hairline —
+ * is what made the old page read as one vertical sequence. On this route each
+ * section states its own rhythm instead, so the page can breathe differently
+ * between a card grid and a full-bleed band.
+ */
+html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-main > section:not(.facet-hero) {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-home-section {
+  padding-block: var(--facet-home-rhythm);
+}
+
+/* Section titles are given the scale the viewport was already offering. */
+html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-main h2 {
+  font-size: var(--facet-text-3xl);
+  letter-spacing: -0.032em;
+}
+
+/* -------------------------------------------------------- shared vocabulary */
+
+/*
+ * The facet mark: a rotated rounded shard, the same shape the brand carries.
+ * It is the page's one repeated ornament — eyebrow, focus areas, journey
+ * highlights — so the composition reads as one system rather than as four
+ * sections that were each decorated separately.
+ */
+html[data-skin='evolving-interface'] .facet-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--facet-space-3);
+  margin: 0;
+  color: var(--facet-ink-subtle);
+  font-family: var(--facet-font-mono);
+  font-size: var(--facet-text-sm);
+  font-weight: 700;
+  letter-spacing: var(--facet-tracking-caps);
+  text-transform: uppercase;
+}
+
+html[data-skin='evolving-interface'] .facet-eyebrow::before {
+  content: '';
+  flex: none;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 0.16rem 50% 50%;
+  background: var(--facet-accent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--facet-accent) 40%, transparent);
+  transform: rotate(45deg);
+}
+
+/*
+ * A section's header: its ordinal, its title, and — where the section has one
+ * — the link that continues it. The ordinal is decorative and `aria-hidden` in
+ * the markup, so this rule dresses a number nobody is read.
+ */
+html[data-skin='evolving-interface'] .facet-section-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: clamp(var(--facet-space-3), 2vw, var(--facet-space-5));
+  row-gap: var(--facet-space-3);
+  padding-block-end: clamp(var(--facet-space-3), 1.6vw, var(--facet-space-4));
+  border-block-end: var(--facet-border-width) solid var(--facet-border);
+}
+
+html[data-skin='evolving-interface'] .facet-section-head__index {
+  margin: 0;
+  color: var(--facet-accent);
+  font-family: var(--facet-font-mono);
+  font-size: clamp(0.85rem, 0.78rem + 0.3vw, 1.05rem);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+html[data-skin='evolving-interface'] .facet-section-head__title {
+  margin: 0;
+  max-width: 20ch;
+}
+
+html[data-skin='evolving-interface'] .facet-section-head__aside {
+  margin: 0;
+  justify-self: end;
+}
+
+/*
+ * A quiet action: a link that is a destination rather than a word in a
+ * sentence. The trailing rule is the affordance, so the link is never
+ * distinguished by colour alone, and it grows on hover instead of moving —
+ * nothing around it shifts.
+ */
+html[data-skin='evolving-interface'] .facet-quiet-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--facet-space-3);
+  min-height: 2.75rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+html[data-skin='evolving-interface'] .facet-quiet-action::after {
+  content: '';
+  width: 1.15rem;
+  height: 2px;
+  border-radius: 2px;
+  background: currentcolor;
+  transition: width var(--facet-duration-base) var(--facet-ease-emphasized);
+}
+
+html[data-skin='evolving-interface'] .facet-quiet-action:hover::after,
+html[data-skin='evolving-interface'] .facet-quiet-action:focus-visible::after {
+  width: 1.9rem;
+}
+
+html[data-skin='evolving-interface'] .facet-button--lead {
+  font-size: clamp(1rem, 0.95rem + 0.22vw, 1.1rem);
+  letter-spacing: -0.012em;
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--facet-accent) 26%, transparent);
+}
+
+/* ------------------------------------------------------------------- hero */
+
+/*
+ * The signature visual, re-composed rather than replaced.
+ *
+ * Its geometry, its layered material and both accepted shards are untouched —
+ * the base rule above still owns all of it. What changes here is that it stops
+ * being a card: the drop shadow goes, the border becomes an accent-tinted rim,
+ * and a radial mask feathers the far corner so the surface dissolves into the
+ * atmosphere behind the hero instead of ending on a hard edge. The canvas the
+ * enhancement layer mounts inside it is masked with it, for free.
+ */
+html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-hero__visual {
+  border-color: color-mix(in srgb, var(--facet-accent) 24%, var(--facet-border));
+  border-radius: clamp(1.5rem, 3.5vw, 3rem);
+  background:
+    linear-gradient(152deg, color-mix(in srgb, var(--facet-accent-soft) 92%, transparent), transparent 54%),
+    radial-gradient(circle at 70% 26%, color-mix(in srgb, var(--facet-accent) 26%, transparent), transparent 46%),
+    color-mix(in srgb, var(--facet-surface-raised) 72%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--facet-ink) 8%, transparent);
+  mask-image: radial-gradient(112% 104% at 12% 4%, #000 38%, transparent 94%);
+}
+
+/*
+ * The shards, given enough material to be seen.
+ *
+ * The accepted fallback draws them from the elevated surface, which reads on
+ * the shell's own background and disappears on the atmosphere the hero now
+ * sits in. This restates only their fill and their rim — the geometry, the two
+ * rotations and the stacking order above the canvas are all still the base
+ * rule's, which is what the signature-hero contract is about.
+ */
+html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-hero__visual::before,
+html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-hero__visual::after {
+  border-color: color-mix(in srgb, var(--facet-accent) 62%, transparent);
+  background:
+    linear-gradient(
+      142deg,
+      color-mix(in srgb, var(--facet-accent) 22%, transparent),
+      color-mix(in srgb, var(--facet-surface-elevated) 42%, transparent) 62%
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--facet-ink) 10%, transparent),
+    0 24px 60px color-mix(in srgb, var(--facet-accent) 14%, transparent);
+}
+
+html[data-skin='evolving-interface'] .facet-hero__focus {
+  gap: var(--facet-space-3) clamp(var(--facet-space-4), 2.5vw, var(--facet-space-6));
+  padding-block-start: clamp(var(--facet-space-4), 2vw, var(--facet-space-5));
+  border-block-start: var(--facet-border-width) solid var(--facet-border);
+  color: var(--facet-ink);
+  font-size: clamp(0.9rem, 0.85rem + 0.25vw, 1.05rem);
+  font-weight: 700;
+  letter-spacing: -0.008em;
+}
+
+html[data-skin='evolving-interface'] .facet-hero__focus > li {
+  display: flex;
+  align-items: center;
+  gap: var(--facet-space-2);
+}
+
+html[data-skin='evolving-interface'] .facet-hero__focus > li::before {
+  content: '';
+  flex: none;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 0.12rem 50% 50%;
+  background: color-mix(in srgb, var(--facet-accent) 72%, transparent);
+  transform: rotate(45deg);
+}
+
+/* ---------------------------------------------------------- selected work */
+
+/*
+ * Three panels that are not three of the same thing.
+ *
+ * The first takes the full width and sets its figure beside its words; the two
+ * after it are half-width and stack. The proportions do the editing: a visitor
+ * can tell the projects apart by size and by shape before reading any of them,
+ * which is the whole difference between a portfolio and a card grid.
+ */
+html[data-skin='evolving-interface'] .facet-work__item {
+  background:
+    linear-gradient(
+      168deg,
+      color-mix(in srgb, var(--facet-surface-raised) 96%, transparent),
+      color-mix(in srgb, var(--facet-surface-raised) 66%, transparent)
+    ),
+    color-mix(in srgb, var(--facet-canvas) 45%, transparent);
+}
+
+html[data-skin='evolving-interface'] .facet-work__body {
+  position: relative;
+  display: grid;
+  gap: clamp(var(--facet-space-4), 2vw, var(--facet-space-5));
+}
+
+/*
+ * The ordinal, set as a ghost numeral over the figure. It is `aria-hidden` in
+ * the markup and `pointer-events: none` here, so it is a mark on the surface
+ * and never something between the reader and the card's one link.
+ */
+html[data-skin='evolving-interface'] .facet-work__index {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  margin: 0;
+  color: color-mix(in srgb, var(--facet-ink) 20%, transparent);
+  font-family: var(--facet-font-mono);
+  font-size: clamp(2rem, 1.2rem + 3.4vw, 4rem);
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: -0.05em;
+  pointer-events: none;
+}
+
+/*
+ * The project figure.
+ *
+ * Abstract geometry, drawn by this stylesheet, illustrating nothing. The
+ * corpus documents no screenshot for any of these projects, so the honest
+ * treatment is a mark rather than a picture of a product that would have to be
+ * invented. Three families are assigned by position, which means a project
+ * added to the selection is always dressed rather than left bare.
+ */
+html[data-skin='evolving-interface'] .facet-work__figure {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border: var(--facet-border-width) solid color-mix(in srgb, var(--facet-border) 72%, transparent);
+  border-radius: calc(var(--facet-radius-lg) - var(--facet-space-1));
+  background-color: color-mix(in srgb, var(--facet-surface-elevated) 82%, transparent);
+}
+
+html[data-skin='evolving-interface'] .facet-work__figure::before,
+html[data-skin='evolving-interface'] .facet-work__figure::after {
+  content: '';
+  position: absolute;
+  border: var(--facet-border-width) solid color-mix(in srgb, var(--facet-accent) 46%, var(--facet-border));
+  background: color-mix(in srgb, var(--facet-surface-raised) 62%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--facet-ink) 8%, transparent);
+}
+
+/* Family one — a fan of shards over a raked field. */
+html[data-skin='evolving-interface'] .facet-work > li:nth-child(3n + 1) .facet-work__figure {
+  background-image:
+    radial-gradient(78% 88% at 84% 10%, color-mix(in srgb, var(--facet-accent) 20%, transparent), transparent 62%),
+    repeating-linear-gradient(
+      116deg,
+      color-mix(in srgb, var(--facet-border-strong) 30%, transparent) 0 1px,
+      transparent 1px 15px
+    );
+}
+
+html[data-skin='evolving-interface'] .facet-work > li:nth-child(3n + 1) .facet-work__figure::before {
+  inset: 16% 46% 30% 12%;
+  border-radius: 50% 1.4rem 50% 1.4rem;
+  transform: rotate(-13deg);
+}
+
+html[data-skin='evolving-interface'] .facet-work > li:nth-child(3n + 1) .facet-work__figure::after {
+  inset: 40% 14% 14% 44%;
+  border-radius: 1.4rem 50% 1.4rem 50%;
+  transform: rotate(9deg);
+}
+
+/* Family two — concentric orbits with a shard resting on the centre. */
+html[data-skin='evolving-interface'] .facet-work > li:nth-child(3n + 2) .facet-work__figure {
+  background-image:
+    radial-gradient(66% 82% at 30% 82%, color-mix(in srgb, var(--facet-accent) 18%, transparent), transparent 64%),
+    repeating-radial-gradient(
+      circle at 62% 40%,
+      color-mix(in srgb, var(--facet-border-strong) 32%, transparent) 0 1px,
+      transparent 1px 17px
+    );
+}
+
+html[data-skin='evolving-interface'] .facet-work > li:nth-child(3n + 2) .facet-work__figure::before {
+  inset: 24% 26% 24% 40%;
+  border-radius: 50% 50% 1.2rem;
+  transform: rotate(18deg);
+}
+
+html[data-skin='evolving-interface'] .facet-work > li:nth-child(3n + 2) .facet-work__figure::after {
+  inset: 52% 62% 20% 12%;
+  border-radius: 1.1rem 1.1rem 50% 1.1rem;
+  transform: rotate(-7deg);
+}
+
+/* Family three — strata, cut across by one long shard. */
+html[data-skin='evolving-interface'] .facet-work > li:nth-child(3n + 3) .facet-work__figure {
+  background-image:
+    radial-gradient(72% 72% at 14% 16%, color-mix(in srgb, var(--facet-accent) 18%, transparent), transparent 60%),
+    repeating-linear-gradient(
+      177deg,
+      color-mix(in srgb, var(--facet-border-strong) 30%, transparent) 0 1px,
+      transparent 1px 13px
+    );
+}
+
+html[data-skin='evolving-interface'] .facet-work > li:nth-child(3n + 3) .facet-work__figure::before {
+  inset: 34% 10% 30% 18%;
+  border-radius: 1.6rem 50% 1.6rem 50%;
+  transform: rotate(-5deg);
+}
+
+html[data-skin='evolving-interface'] .facet-work > li:nth-child(3n + 3) .facet-work__figure::after {
+  inset: 12% 20% 60% 52%;
+  border-radius: 50% 1rem 50% 1rem;
+  transform: rotate(14deg);
+}
+
+html[data-skin='evolving-interface'] .facet-work__text {
+  display: grid;
+  gap: var(--facet-space-3);
+  align-content: start;
+}
+
+html[data-skin='evolving-interface'] .facet-work__title {
+  margin: 0;
+  font-size: clamp(1.3rem, 1.08rem + 0.75vw, 1.75rem);
+  font-weight: 700;
+  letter-spacing: -0.022em;
+}
+
+html[data-skin='evolving-interface'] .facet-work__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--facet-space-2) var(--facet-space-4);
+  margin: 0;
+  color: var(--facet-ink-subtle);
+  font-family: var(--facet-font-mono);
+  font-size: var(--facet-text-xs);
+  font-weight: 700;
+  letter-spacing: var(--facet-tracking-caps);
+  text-transform: uppercase;
+}
+
+html[data-skin='evolving-interface'] .facet-work__summary {
+  max-width: 54ch;
+  margin: 0;
+  color: var(--facet-ink-muted);
+}
+
+/*
+ * Tools and ideas, kept apart and kept quiet.
+ *
+ * The corpus separates a technology from a concept on purpose, so the two
+ * lists keep their own labels; what changes is their weight. They are the last
+ * thing on the panel and they are set as a two-column record, which is what
+ * lets a project with eleven technologies sit on a panel without the panel
+ * becoming a list of eleven technologies.
+ */
+html[data-skin='evolving-interface'] .facet-work__tags {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--facet-space-2) var(--facet-space-4);
+  margin: 0;
+  padding-block-start: var(--facet-space-3);
+  border-block-start: var(--facet-border-width) solid color-mix(in srgb, var(--facet-border) 74%, transparent);
+  font-size: var(--facet-text-sm);
+}
+
+html[data-skin='evolving-interface'] .facet-work__tags dt {
+  color: var(--facet-ink-subtle);
+  font-size: var(--facet-text-xs);
+  font-weight: 700;
+  letter-spacing: var(--facet-tracking-caps);
+  line-height: 1.9;
+  text-transform: uppercase;
+}
+
+html[data-skin='evolving-interface'] .facet-work__tags dd {
+  margin: 0;
+  color: var(--facet-ink-muted);
+}
+
+/* --------------------------------------------------------------- the bands */
+
+/*
+ * A band is a section that has given up the measure. It runs the full width of
+ * the route's canvas, which on this route is the full width of the viewport,
+ * and pays for that with its own surface — otherwise it would only be a wider
+ * version of the section above it.
+ */
+html[data-skin='evolving-interface'] .facet-band {
+  position: relative;
+  isolation: isolate;
+}
+
+html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-band-skills {
+  padding-block: clamp(3.5rem, 7.5vw, 8rem);
+  border-block: var(--facet-border-width) solid color-mix(in srgb, var(--facet-accent) 20%, var(--facet-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--facet-accent) 5%, transparent), transparent 45%),
+    var(--facet-band);
+}
+
+html[data-skin='evolving-interface'] .facet-skills {
+  display: grid;
+  gap: clamp(var(--facet-space-3), 1.8vw, var(--facet-space-5));
+  margin-block-start: clamp(var(--facet-space-5), 3.5vw, var(--facet-space-7));
+}
+
+/*
+ * A row starts at the page's own left measure and ends at the viewport. That
+ * asymmetry is the point: a strip that stopped at a container would read as a
+ * list that had been cut short, and the whole claim of the section is that it
+ * does not stop.
+ */
+html[data-skin='evolving-interface'] .facet-skills__row {
+  display: grid;
+  gap: var(--facet-space-2);
+  padding-inline-start: var(--facet-home-gutter);
+}
+
+html[data-skin='evolving-interface'] .facet-skills__label {
+  display: flex;
+  align-items: center;
+  gap: var(--facet-space-3);
+  margin: 0;
+  color: var(--facet-ink-subtle);
+  font-size: clamp(0.8rem, 0.74rem + 0.28vw, 1rem);
+  font-weight: 700;
+  letter-spacing: var(--facet-tracking-caps);
+  text-transform: uppercase;
+}
+
+html[data-skin='evolving-interface'] .facet-skills__label::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: linear-gradient(90deg, var(--facet-border), transparent);
+}
+
+/*
+ * A wider fade than the shell's at the exit, because the strip now runs to a
+ * screen edge — and a much shorter one at the entry, because it does not.
+ *
+ * From 52rem the label moves out of the row and sits in a column beside it, so
+ * the strip starts immediately to the right of the word. Nine rem of ramp at
+ * that edge put the first two or three chips permanently at half opacity,
+ * directly beside CERTIFICATION and LANGUAGE, and the effect was not "the
+ * strip continues past the label" but "the label is standing on the chips".
+ * The entry now softens over roughly one chip's own width: enough that no chip
+ * begins at a hard edge, short enough that the first fully readable one is the
+ * first one after the gutter.
+ */
+html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-ribbon {
+  --facet-ribbon-fade: clamp(2rem, 8vw, 9rem);
+  --facet-ribbon-fade-start: clamp(1.25rem, 2.6vw, 2.75rem);
+}
+
+/*
+ * The centre light — an affordance, not a rail.
+ *
+ * At rest a row is the band and nothing else: no strip, no seam, no second
+ * tone between the pills. The section surface runs unbroken behind them and
+ * the pills are the only thing on it, which is the whole claim of the band.
+ *
+ * The light exists for the one moment it says something. A pointer resting on
+ * a row, or focus entering it, is a reader singling that row out, and the
+ * gradient answers by lighting the part of the strip they are looking at —
+ * the same centre light as before, spending its contrast on an interaction
+ * instead of on the page's resting state. It is `opacity` on a pseudo-element
+ * that was already composited, so the affordance still costs nothing per frame.
+ */
+html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-ribbon::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: radial-gradient(
+    54% 150% at 50% 50%,
+    color-mix(in srgb, var(--facet-accent) 11%, transparent),
+    transparent 72%
+  );
+  opacity: 0;
+  transition: opacity var(--facet-duration-slow) var(--facet-ease-standard);
+  pointer-events: none;
+}
+
+/*
+ * Focus is not a hover, so it is answered outside the hover query: a reader
+ * tabbing into a row gets the same acknowledgement a pointer gets.
+ */
+html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-ribbon:focus-within::after {
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-ribbon:hover::after {
+    opacity: 1;
+  }
+}
+
+html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-chip {
+  border-color: color-mix(in srgb, var(--facet-border-strong) 42%, transparent);
+  background: color-mix(in srgb, var(--facet-surface-raised) 88%, transparent);
+  color: var(--facet-ink);
+  font-size: clamp(0.85rem, 0.8rem + 0.22vw, 1rem);
+  letter-spacing: -0.006em;
+  box-shadow: var(--facet-shadow-sm);
+}
+
+/*
+ * A pill inside a moving ribbon casts no shadow, because there is nowhere for
+ * one to land.
+ *
+ * `--facet-shadow-sm` is a *cast* shadow: in light it is
+ * `0 8px 22px rgb(43 52 89 / 0.06)`, painted 8px below the box and blurred
+ * 22px past it. A live ribbon is `overflow: hidden` and a pill is exactly the
+ * ribbon's own height, so every part of that shadow which falls below the pill
+ * is cut off at the ribbon's bottom edge — a razor-straight horizontal
+ * terminator running the full width of the row, with the grey above it and the
+ * bare band below it. What is left inside the box is a smear that fills the
+ * 12px gaps between pills and rides on the track. The pills travel, the
+ * terminator does not, and the result is the residual light-mode artifact:
+ * a faint secondary strip that appears to slide underneath the pills, offset
+ * from them by exactly the shadow's 8px.
+ *
+ * It reads as light-mode-only because dark's `--facet-shadow-sm` is black on a
+ * near-black band, where the same clipped smear is below perception.
+ *
+ * The fix is not to make room for the shadow — widening the clip box would
+ * expose the cast shadow in full and turn a clipped ghost into a visible one
+ * travelling with the pills, which is the same complaint. A pill on this band
+ * is already separated from it by a border and by two full steps of surface;
+ * the shadow was adding nothing to that inside the ribbon, only its own cut
+ * edge. Outside a live ribbon — no JavaScript, reduced motion, before the
+ * runtime measures — the list wraps, nothing is clipped, and the material is
+ * untouched.
+ */
+html[data-skin='evolving-interface'] body[data-facet-route='home'] [data-facet-ribbon='live'] .facet-chip {
+  box-shadow: none;
+}
+
+/* ---------------------------------------------------------------- journey */
+
+/*
+ * The chronology, as milestones rather than as a rail.
+ *
+ * Every fact the corpus records is still here — dates, kind, title,
+ * organisation, location, summary and every highlight — and the list is still
+ * an ordered list in the corpus's own order, so the chronology survives with
+ * no stylesheet at all. What was removed is a single column two screens tall:
+ * from 58rem the entries sit two abreast, and the period is promoted to the
+ * first thing on each card so the sequence is still legible read as a grid.
+ */
+html[data-skin='evolving-interface'] .facet-journey__item {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--facet-space-2) var(--facet-space-4);
+  padding: clamp(var(--facet-space-4), 2vw, var(--facet-space-5));
+  padding-inline-start: clamp(var(--facet-space-5), 2.6vw, var(--facet-space-6));
+  border: var(--facet-border-width) solid var(--facet-border);
+  border-radius: var(--facet-radius-lg);
+  background: color-mix(in srgb, var(--facet-surface-raised) 62%, transparent);
+}
+
+/* What is left of the rail: one tick per milestone, on the milestone. */
+html[data-skin='evolving-interface'] .facet-journey__item::before {
+  content: '';
+  position: absolute;
+  inset-block: clamp(var(--facet-space-4), 2vw, var(--facet-space-5));
+  inset-inline-start: 0;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--facet-accent), transparent 88%);
+}
+
+html[data-skin='evolving-interface'] .facet-journey__period {
+  margin: 0;
+  color: var(--facet-ink);
+  font-family: var(--facet-font-mono);
+  font-size: clamp(1rem, 0.9rem + 0.5vw, 1.3rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+html[data-skin='evolving-interface'] .facet-journey__kind {
+  justify-self: end;
+  margin: 0;
+  padding: 0.15rem 0.6rem;
+  border: var(--facet-border-width) solid color-mix(in srgb, var(--facet-accent) 34%, var(--facet-border));
+  border-radius: var(--facet-radius-pill);
+  color: var(--facet-ink-subtle);
+  font-size: var(--facet-text-xs);
+  font-weight: 700;
+  letter-spacing: var(--facet-tracking-caps);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+html[data-skin='evolving-interface'] .facet-journey__title,
+html[data-skin='evolving-interface'] .facet-journey__where,
+html[data-skin='evolving-interface'] .facet-journey__summary,
+html[data-skin='evolving-interface'] .facet-journey__highlights {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+html[data-skin='evolving-interface'] .facet-journey__title {
+  margin-block-start: var(--facet-space-2);
+  font-size: clamp(1.08rem, 1rem + 0.4vw, 1.32rem);
+  font-weight: 700;
+}
+
+html[data-skin='evolving-interface'] .facet-journey__where {
+  color: var(--facet-ink-subtle);
+  font-size: var(--facet-text-sm);
+  font-weight: 700;
+}
+
+html[data-skin='evolving-interface'] .facet-journey__summary {
+  color: var(--facet-ink-muted);
+  font-size: var(--facet-text-sm);
+}
+
+html[data-skin='evolving-interface'] .facet-journey__highlights {
+  display: grid;
+  gap: var(--facet-space-2);
+  padding-block-start: var(--facet-space-2);
+  color: var(--facet-ink-subtle);
+  font-size: var(--facet-text-sm);
+}
+
+html[data-skin='evolving-interface'] .facet-journey__highlights > li {
+  position: relative;
+  padding-inline-start: 1rem;
+}
+
+html[data-skin='evolving-interface'] .facet-journey__highlights > li::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0.62em;
+  inset-inline-start: 0;
+  width: 0.32rem;
+  height: 0.32rem;
+  border-radius: 0.1rem 50% 50%;
+  background: color-mix(in srgb, var(--facet-accent) 62%, transparent);
+  transform: rotate(45deg);
+}
+
+/* ----------------------------------------------------------- the finale */
+
+/*
+ * The last movement, and the one plate on the route.
+ *
+ * It has a treatment per theme rather than one inked surface imposed on both.
+ * The plate used to re-point the skin's semantic colours at their dark values
+ * inside itself, which made the section read in light mode as if dark mode had
+ * leaked into the page. It no longer re-points anything: `--facet-plate` is
+ * already a per-theme primitive, and every colour below is the ambient
+ * semantic token, so each theme states its own ending and neither is the
+ * other's inversion.
+ *
+ * In dark that is exactly the surface it always was — the ambient tokens *are*
+ * the dark ones, so nothing about the dark plate moved. In light it is the
+ * page's own paper, raised: the lightest ground on the route, a hair above the
+ * canvas rather than a violet block set into it. The finale is still a
+ * deliberate last act, but it is made of what is *on* the plate — the accent
+ * hairline at its top edge, a violet bloom held to atmosphere, the shard, and
+ * the one action in full accent — rather than of a saturated ground.
+ *
+ * The pairs are the ones `tools/check-design-system.mjs` already gates, so no
+ * text on this plate is a contrast the design system has never seen.
+ *
+ * It carries no claim the corpus does not make. There is one action, with the
+ * label it always had, and nothing about availability, timing or terms.
+ */
+html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-band-finale {
+  overflow: hidden;
+  margin-block-start: clamp(3rem, 7vw, 7rem);
+  padding-block: clamp(5rem, 12vw, 12rem);
+  color: var(--facet-ink);
+  background: var(--facet-plate);
+}
+
+html[data-skin='evolving-interface'] .facet-band-finale::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -30% -12% -30%;
+  background:
+    radial-gradient(46% 54% at 22% 12%, color-mix(in srgb, var(--facet-accent) var(--facet-plate-wash), transparent), transparent 66%),
+    radial-gradient(40% 46% at 86% 88%, color-mix(in srgb, var(--facet-focus) var(--facet-plate-glow), transparent), transparent 68%);
+  pointer-events: none;
+}
+
+/* One hairline of the skin's own shard geometry, at the plate's top edge. */
+html[data-skin='evolving-interface'] .facet-band-finale::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--facet-accent) 55%, transparent) 30%,
+    color-mix(in srgb, var(--facet-accent) 55%, transparent) 70%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+html[data-skin='evolving-interface'] .facet-finale {
+  position: relative;
+  display: grid;
+  justify-items: start;
+  gap: clamp(var(--facet-space-4), 2.2vw, var(--facet-space-5));
+}
+
+html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-main .facet-finale__title {
+  max-width: 14ch;
+  margin: 0;
+  font-size: clamp(2.6rem, 1.5rem + 4.6vw, 6rem);
+  font-weight: 700;
+  line-height: var(--facet-leading-tight);
+  letter-spacing: -0.042em;
+}
+
+html[data-skin='evolving-interface'] .facet-finale__lede {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--facet-ink-muted);
+  font-size: clamp(1.05rem, 0.95rem + 0.5vw, 1.4rem);
+  line-height: var(--facet-leading-heading);
+}
+
+html[data-skin='evolving-interface'] .facet-finale__action {
+  margin-block-start: var(--facet-space-3);
+}
+
+/* ------------------------------------------------------- responsive shape */
+
+/*
+ * The composition changes shape at each of the four sizes it was designed for
+ * rather than stacking one desktop layout. The two that matter most are here:
+ * work goes from one panel-plus-two to a single column of panels, and the
+ * journey goes from two columns of milestones to one.
+ */
+@media (min-width: 52rem) {
+  /*
+   * `start` rather than the default stretch: two panels with different amounts
+   * to say are two different heights, and a shorter one padded out to match
+   * its neighbour is the equal-rectangle problem coming back in through
+   * alignment. The tops line up, which is the alignment that reads.
+   */
+  html[data-skin='evolving-interface'] .facet-work {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  /* The lead panel: full width, and the only one that reads horizontally. */
+  html[data-skin='evolving-interface'] .facet-work > li:first-child {
+    grid-column: 1 / -1;
+  }
+
+  /*
+   * The lead panel is full width from here, but it does not go horizontal
+   * until there is room for two real columns. Between the two breakpoints it
+   * is a banner: one wide figure over its words, which is a third proportion
+   * again and reads far better than a five-by-four figure squeezed against a
+   * paragraph on a tablet.
+   */
+  html[data-skin='evolving-interface'] .facet-work > li:first-child .facet-work__figure {
+    aspect-ratio: 2 / 1;
+  }
+
+  html[data-skin='evolving-interface'] .facet-work > li:first-child .facet-work__title {
+    font-size: clamp(1.7rem, 1.15rem + 1.7vw, 2.6rem);
+    letter-spacing: -0.032em;
+  }
+
+  html[data-skin='evolving-interface'] .facet-work > li:nth-child(2) .facet-work__figure {
+    aspect-ratio: 4 / 3;
+  }
+
+  html[data-skin='evolving-interface'] .facet-work > li:nth-child(3) .facet-work__figure {
+    aspect-ratio: 16 / 10;
+  }
+}
+
+@media (min-width: 64rem) {
+  html[data-skin='evolving-interface'] .facet-work > li:first-child .facet-work__body {
+    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+    align-items: center;
+    gap: clamp(var(--facet-space-5), 3vw, var(--facet-space-7));
+  }
+
+  html[data-skin='evolving-interface'] .facet-work > li:first-child .facet-work__figure {
+    aspect-ratio: 5 / 4;
+  }
+
+  /* Over the figure rather than over the first line of the title. */
+  html[data-skin='evolving-interface'] .facet-work > li:first-child .facet-work__index {
+    inset: auto auto 0 0;
+  }
+
+  /*
+   * The finale, as a composition rather than as a column in the left third.
+   *
+   * The statement stays on the measure and the action moves to the far side,
+   * set on the same baseline as the sentence it answers — so the plate is one
+   * wide gesture across the page instead of a paragraph with a lot of unlit
+   * room beside it.
+   */
+  html[data-skin='evolving-interface'] .facet-finale {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    column-gap: clamp(var(--facet-space-6), 6vw, var(--facet-space-9));
+  }
+
+  /*
+   * The statement is pinned to the first column rather than left to auto
+   * placement. Without this the explicitly placed action opens a hole in row
+   * one and the title flows into it — the heading ends up on the right-hand
+   * side of its own plate.
+   */
+  html[data-skin='evolving-interface'] .facet-finale > .facet-section-head__index,
+  html[data-skin='evolving-interface'] .facet-finale__title,
+  html[data-skin='evolving-interface'] .facet-finale__lede {
+    grid-column: 1;
+  }
+
+  html[data-skin='evolving-interface'] .facet-finale__action {
+    grid-column: 2;
+    grid-row: 2 / 4;
+    align-self: end;
+    justify-self: end;
+    margin: 0;
+  }
+
+  /* One outsized shard, cropped by the plate: the page's own mark, closing. */
+  html[data-skin='evolving-interface'] .facet-finale::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset-block-start: -22%;
+    inset-inline-start: 62%;
+    height: 144%;
+    aspect-ratio: 1;
+    border: var(--facet-border-width) solid color-mix(in srgb, var(--facet-accent) 26%, transparent);
+    border-radius: 50% 7rem 50% 7rem;
+    background: linear-gradient(
+      148deg,
+      color-mix(in srgb, var(--facet-accent) 13%, transparent),
+      transparent 64%
+    );
+    transform: rotate(-13deg);
+    pointer-events: none;
+  }
+
+  /*
+   * The category name moves into the page's own left column and the strip
+   * takes the rest of the screen. `50%` here is half the band, which is half
+   * the viewport, so the label lands exactly on the measure the sections above
+   * it are set in — without either of them knowing about the other.
+   */
+  html[data-skin='evolving-interface'] .facet-skills__row {
+    grid-template-columns: minmax(0, 11rem) minmax(0, 1fr);
+    align-items: center;
+    gap: clamp(var(--facet-space-4), 2vw, var(--facet-space-6));
+    padding-inline-start: max(
+      var(--facet-home-gutter),
+      calc(50% - var(--facet-home-max) / 2 + var(--facet-home-gutter))
+    );
+  }
+}
+
+@media (max-width: 51.99rem) {
+  /* Below the two-column work grid the figure is a banner over the words. */
+  html[data-skin='evolving-interface'] .facet-work__figure {
+    aspect-ratio: 2 / 1;
+  }
+}
+
+@media (max-width: 40rem) {
+  html[data-skin='evolving-interface'] body[data-facet-route='home'] {
+    --facet-home-rhythm: clamp(3.25rem, 12vw, 4.5rem);
+  }
+
+  html[data-skin='evolving-interface'] .facet-section-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  html[data-skin='evolving-interface'] .facet-section-head__aside {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  /*
+   * A milestone's kind drops under its period rather than being squeezed
+   * beside it: at this width the two together would set the card's minimum
+   * width and the summary would wrap to four words a line.
+   */
+  html[data-skin='evolving-interface'] .facet-journey__item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  html[data-skin='evolving-interface'] .facet-journey__kind {
+    justify-self: start;
+  }
+
+  /*
+   * Density, at the one width where the journey could still run away with the
+   * page. Nothing is removed — the summary and every highlight are still here
+   * — the entry is simply set tighter, which is the difference between four
+   * milestones and a wall.
+   */
+  html[data-skin='evolving-interface'] .facet-journey__summary,
+  html[data-skin='evolving-interface'] .facet-journey__highlights {
+    font-size: var(--facet-text-xs);
+    line-height: 1.55;
+  }
+
+  html[data-skin='evolving-interface'] .facet-journey__highlights {
+    gap: var(--facet-space-1);
+  }
+
+  html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-band-finale {
+    padding-block: clamp(3.5rem, 16vw, 5.5rem);
+  }
+}
 
 @media (max-width: 40rem) {
   html[data-skin='evolving-interface'] .facet-main > section:not(.facet-hero) {
@@ -948,6 +2778,34 @@ html[data-skin='evolving-interface'] .facet-inline-form { flex-wrap: wrap; }
 @media (max-width: 47.99em) {
   html[data-skin='evolving-interface'] .facet-header__inner { min-height: 4.25rem; }
 
+  /*
+   * The collapse control, at the width where it is the only control that
+   * collapses anything.
+   *
+   * Above 48em the shared layer removes this button outright, so everything
+   * here is about the narrow header and nothing else. The word is dropped and
+   * the glyph is left to say it: at this width the button sits between a brand
+   * and a theme control on a single line, and the pill it used to be was the
+   * heaviest thing in the header.
+   *
+   * What is dropped is the *visible* word. The button keeps its `aria-label`,
+   * so its accessible name is still "Menu"; it keeps `aria-expanded` and
+   * `aria-controls`, so it still reports and addresses the list it collapses;
+   * and it keeps its square, which is 2.75rem — 44px — on both axes, because
+   * an icon-only control is only lighter if it is lighter to look at and not
+   * to hit.
+   */
+  html[data-skin='evolving-interface'] .facet-nav-toggle {
+    min-width: 2.75rem;
+    justify-content: center;
+    gap: 0;
+    padding-inline: 0;
+  }
+
+  html[data-skin='evolving-interface'] .facet-nav-toggle__text {
+    display: none;
+  }
+
   html[data-skin='evolving-interface'] [data-facet-header][data-facet-nav-enhanced][data-facet-nav-open='true'] .facet-nav {
     padding: var(--facet-space-2) 0 var(--facet-space-3);
   }
@@ -959,10 +2817,79 @@ html[data-skin='evolving-interface'] .facet-inline-form { flex-wrap: wrap; }
   html[data-skin='evolving-interface'] [data-facet-header][data-facet-nav-enhanced] .facet-nav__link {
     border-radius: var(--facet-radius-sm);
   }
+
+  /*
+   * The collapsed menu keeps the treatment it was reviewed with.
+   *
+   * The desktop mark is a line under a word in a row of words; in a stacked
+   * menu the same line spans a full-width block and stops being a mark. The
+   * rows are already separated by rules of their own, so here the states are
+   * carried the way they were before — ink for hover, the accent ground for
+   * the route you are on — and the mark stands down.
+   */
+  html[data-skin='evolving-interface'] [data-facet-header][data-facet-nav-enhanced] .facet-nav__link::after {
+    content: none;
+  }
+
+  html[data-skin='evolving-interface'] [data-facet-header][data-facet-nav-enhanced] .facet-nav__link:hover,
+  html[data-skin='evolving-interface'] [data-facet-header][data-facet-nav-enhanced] .facet-nav__link:focus-visible {
+    background: var(--facet-surface-elevated);
+  }
+
+  html[data-skin='evolving-interface'] [data-facet-header][data-facet-nav-enhanced] .facet-nav__link[aria-current='page'] {
+    background: var(--facet-accent-soft);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   html[data-skin='evolving-interface'] body { background-attachment: scroll; }
+
+  /*
+   * The route mark, under reduced motion: the same three states, none of them
+   * arriving from anywhere.
+   *
+   * The line's growth is decoration; its presence is information. So the
+   * scale is dropped — every state is drawn at full width — and the states
+   * are told apart by opacity alone, which is exactly as legible and does not
+   * move. The shared layer has already flattened the durations; this is what
+   * stops the line snapping outwards at zero duration instead of simply
+   * being there.
+   */
+  html[data-skin='evolving-interface'] .facet-nav__link::after,
+  html[data-skin='evolving-interface'] .facet-nav__link:hover::after,
+  html[data-skin='evolving-interface'] .facet-nav__link:focus-visible::after,
+  html[data-skin='evolving-interface'] .facet-nav__link[aria-current='page']::after {
+    scale: 1 1;
+  }
+
+  /*
+   * The theme control, under reduced motion: the same control, arriving
+   * without the journey.
+   *
+   * The shared layer already collapses every transition to 0.01ms, so nothing
+   * here is about speed. It is about distance. A translation that takes no
+   * time still *is* a translation, and the two the scene owns — the clouds
+   * falling out of frame and the stars rising into it — become, at zero
+   * duration, two layers that teleport. Setting the drift to nothing removes
+   * the movement rather than compressing it: the clouds fade where they stand
+   * and the stars appear where they belong.
+   *
+   * The stagger goes with it, for the same reason: 80ms of delay on a
+   * transition that no longer transitions is 80ms of the scene being visibly
+   * half-finished.
+   *
+   * What is untouched is every property that carries meaning. The sky still
+   * changes colour, the body still moves from one end of the track to the
+   * other and still becomes a moon, the craters still appear. The final state
+   * is identical in both preferences, and so is the theme it switches.
+   */
+  html[data-skin='evolving-interface'] .facet-theme-toggle {
+    --facet-toggle-drift: 0rem;
+  }
+
+  html[data-skin='evolving-interface'] .facet-theme-toggle[aria-pressed='true'] .facet-theme-toggle__stars {
+    transition-delay: 0s;
+  }
 
   /*
    * A section is never waiting to arrive. The runtime declines to mount the
@@ -1005,5 +2932,14 @@ html[data-skin='evolving-interface'] .facet-inline-form { flex-wrap: wrap; }
   html[data-skin='evolving-interface'] .facet-card:hover,
   html[data-skin='evolving-interface'] .facet-card:focus-within {
     transform: none;
+  }
+
+  /*
+   * The ribbon's centre light says "this is the part that is moving". With
+   * nothing moving it says nothing, and a tint over a static wrapping list is
+   * only a tint over a list.
+   */
+  html[data-skin='evolving-interface'] body[data-facet-route='home'] .facet-ribbon::after {
+    display: none;
   }
 }

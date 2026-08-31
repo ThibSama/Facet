@@ -684,7 +684,7 @@ final class AuthHttpFlowTest extends TestCase
         self::assertIsString($authenticated);
 
         $token = Dom::element(
-            Dom::of(Dom::withoutScripts($this->request('GET', '/contact')['body'])),
+            Dom::of(Dom::withoutScripts($this->request('GET', '/fr/contact')['body'])),
             '//main//form//input[@name="_token"]'
         )->getAttribute('value');
 

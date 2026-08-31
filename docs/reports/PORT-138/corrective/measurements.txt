@@ -1,0 +1,2 @@
+light → dark: ground moved 310ms over 3 frames; body ink moved 158ms over 2 frames; the transition mark was present 295ms (18 frames sampled).
+dark → light: ground moved 267ms over 2 frames; body ink moved 0ms over 1 frames; the transition mark was present 298ms (13 frames sampled).

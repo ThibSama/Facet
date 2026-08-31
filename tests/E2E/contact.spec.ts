@@ -21,29 +21,29 @@ const VALID = {
 async function fill(page: import('@playwright/test').Page, values: Partial<typeof VALID>): Promise<void> {
   const merged = { ...VALID, ...values };
 
-  await page.getByLabel('Name').fill(merged.name);
-  await page.getByLabel('Email').fill(merged.email);
-  await page.getByLabel('Subject').fill(merged.subject);
-  await page.getByLabel('Message').fill(merged.message);
+  await page.getByLabel('Nom', { exact: true }).fill(merged.name);
+  await page.getByLabel('Adresse e-mail').fill(merged.email);
+  await page.getByLabel('Objet').fill(merged.subject);
+  await page.getByLabel('Message', { exact: true }).fill(merged.message);
 }
 
 test.describe('contact', () => {
   test('a valid submission is confirmed, and the confirmation is not repeatable', async ({ page }) => {
-    await page.goto('/contact');
+    await page.goto('/fr/contact');
     await expect(page.getByRole('heading', { level: 1, name: 'Contact' })).toBeVisible();
 
     await fill(page, {});
-    await page.getByRole('button', { name: 'Send message' }).click();
+    await page.getByRole('button', { name: 'Envoyer le message' }).click();
 
     // Post/Redirect/Get: the visitor ends on the form's own URL, by a GET.
-    await expect(page).toHaveURL('/contact');
+    await expect(page).toHaveURL('/fr/contact');
     await expect(page.getByRole('status')).toHaveText(
-      'Thank you — your message has been received and stored on this site.',
+      'Merci — votre message a été reçu et enregistré sur ce site.',
     );
 
     // The form comes back empty, ready for a different message rather than
     // holding the one that was just sent.
-    await expect(page.getByLabel('Subject')).toHaveValue('');
+    await expect(page.getByLabel('Objet')).toHaveValue('');
 
     // The flash is read once. Reloading the landing page must not re-announce
     // a receipt for a message that was already confirmed.
@@ -52,9 +52,9 @@ test.describe('contact', () => {
   });
 
   test('an accepted message reaches the administrator inbox', async ({ page }) => {
-    await page.goto('/contact');
+    await page.goto('/fr/contact');
     await fill(page, {});
-    await page.getByRole('button', { name: 'Send message' }).click();
+    await page.getByRole('button', { name: 'Envoyer le message' }).click();
     await expect(page.getByRole('status')).toBeVisible();
 
     await signIn(page, ADMIN.email, ADMIN.password, '/admin');
@@ -75,7 +75,7 @@ test.describe('contact', () => {
   });
 
   test('a submission the server rejects comes back with the values and the reason', async ({ page }) => {
-    await page.goto('/contact');
+    await page.goto('/fr/contact');
 
     // Whitespace satisfies the browser's `required`; the server trims, so this
     // reaches the real validator rather than being stopped at the control.
@@ -84,24 +84,26 @@ test.describe('contact', () => {
     const response = page.waitForResponse(
       (candidate) => candidate.request().isNavigationRequest() && candidate.request().method() === 'POST',
     );
-    await page.getByRole('button', { name: 'Send message' }).click();
+    await page.getByRole('button', { name: 'Envoyer le message' }).click();
 
     expect((await response).status()).toBe(422);
 
-    await expect(page).toHaveURL('/contact');
+    await expect(page).toHaveURL('/fr/contact');
     await expect(page.getByRole('main')).toContainText(
-      'Your message was not sent. Please correct the fields marked below.',
+      "Votre message n'a pas été envoyé. Merci de corriger les champs signalés ci-dessous.",
     );
-    await expect(page.getByText('Please give a name I can address a reply to.')).toBeVisible();
+    await expect(
+      page.getByText('Merci d’indiquer un nom auquel adresser une réponse.'),
+    ).toBeVisible();
 
     // The rejected control says so, and the values the visitor typed survive.
-    await expect(page.getByLabel('Name')).toHaveAttribute('aria-invalid', 'true');
-    await expect(page.getByLabel('Subject')).toHaveValue(VALID.subject);
-    await expect(page.getByLabel('Message')).toHaveValue(VALID.message);
+    await expect(page.getByLabel('Nom', { exact: true })).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByLabel('Objet')).toHaveValue(VALID.subject);
+    await expect(page.getByLabel('Message', { exact: true })).toHaveValue(VALID.message);
   });
 
   test('a submission carrying the wrong token is refused outright', async ({ page }) => {
-    await page.goto('/contact');
+    await page.goto('/fr/contact');
     await fill(page, {});
 
     // The token is replaced in the document the browser is about to post, so
@@ -114,11 +116,11 @@ test.describe('contact', () => {
     const response = page.waitForResponse(
       (candidate) => candidate.request().isNavigationRequest() && candidate.request().method() === 'POST',
     );
-    await page.getByRole('button', { name: 'Send message' }).click();
+    await page.getByRole('button', { name: 'Envoyer le message' }).click();
 
     expect((await response).status()).toBe(403);
 
-    await expect(page.getByRole('heading', { level: 1, name: 'Not available' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Page indisponible' })).toBeVisible();
 
     // Refused before anything was written: an administrator finds nothing.
     await signIn(page, ADMIN.email, ADMIN.password, '/admin');

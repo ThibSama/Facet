@@ -17,7 +17,7 @@ final class RenderSmokeTest extends TestCase
         $root = dirname(__DIR__, 2);
 
         $command = sprintf(
-            'APP_NAME=Facet APP_ENV=local APP_KEY=test-key %s %s 2>&1',
+            'APP_NAME=Facet APP_ENV=local APP_KEY=test-key REQUEST_URI=/fr %s %s 2>&1',
             escapeshellarg(PHP_BINARY),
             escapeshellarg($root . '/public/index.php')
         );

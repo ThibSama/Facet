@@ -109,26 +109,26 @@ final class SeoMetadataHttpTest extends TestCase
         $corpus = CorpusLoader::default(self::root())->load();
         $profile = $corpus->profile();
         $matrix = [
-            '/' => [
+            '/fr' => [
                 'title' => $profile->name() . ' — ' . $profile->headline(),
                 'description' => $profile->summary(),
             ],
-            '/projects' => [
+            '/fr/projects' => [
                 'title' => 'Projets — ' . $profile->name(),
                 'description' => 'Les projets de ' . $profile->name() . ', présentés à partir de leurs informations vérifiées.',
             ],
-            '/about' => [
+            '/fr/about' => [
                 'title' => 'À propos de ' . $profile->name(),
                 'description' => $profile->headline() . ' en ' . $profile->location() . '. ' . $profile->summary(),
             ],
-            '/contact' => [
+            '/fr/contact' => [
                 'title' => 'Contacter ' . $profile->name(),
                 'description' => 'Formulaire de contact de ' . $profile->name() . ' et liens publics issus de son profil.',
             ],
         ];
 
         foreach ($corpus->projects() as $project) {
-            $matrix['/projects/' . $project->slug()->value()] = [
+            $matrix['/fr/projects/' . $project->slug()->value()] = [
                 'title' => $project->name() . ' — Projet de ' . $profile->name(),
                 'description' => $project->summary(),
             ];
@@ -181,7 +181,7 @@ final class SeoMetadataHttpTest extends TestCase
         $corpus = CorpusLoader::default(self::root())->load();
 
         foreach ($corpus->projects() as $project) {
-            $path = '/projects/' . $project->slug()->value();
+            $path = '/fr/projects/' . $project->slug()->value();
             $dom = Dom::of(self::get($path)['body']);
             $meta = Dom::element($dom, '//meta[@name="description"]');
 

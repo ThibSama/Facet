@@ -1,0 +1,170 @@
+{
+  "schemaVersion": "1.0.0",
+  "locale": "en",
+  "_note": "English translation of the canonical French corpus. Facts live in content/*.json and are never repeated here: this file carries prose only, addressed by the canonical slug it translates. See src/Content/TranslationOverlay.php.",
+  "profile": {
+    "headline": "Application developer in training",
+    "summary": "After a BTS SIO (SLAM option), I am continuing my studies in a Bachelor's programme in Application Design and Development at Foreach Academy. I am particularly interested in application development, blockchain and hardware, and I like to understand how systems work in depth before designing a solution. Independent and rigorous, I care a great deal about the quality of my work and about sharing it.",
+    "focusAreas": [
+      "Application development",
+      "Blockchain",
+      "Hardware"
+    ],
+    "links": [
+      "GitHub"
+    ],
+    "portrait": {
+      "description": "Portrait of Thibault Paul."
+    }
+  },
+  "projects": {
+    "kushim": {
+      "summary": "An investment portfolio tracking and analysis application, built as a set of Rust services around a PostgreSQL database.",
+      "context": "Kushim brings portfolios together, records operations, and allows assets to be searched and summaries, positions and historical snapshots to be consulted. The repository explicitly states what the project is not: not a broker, not an execution platform, not a bank, not a payment provider, and not a market data provider.",
+      "role": "Personal project: service architecture, development and technical documentation.",
+      "concepts": [
+        "Separate services",
+        "Synchronous business API",
+        "Deferred processing by worker",
+        "Snapshots and history rebuilding",
+        "Documented data contracts",
+        "Automated smoke tests"
+      ],
+      "outcomes": [
+        "The \"local MVP demonstration\" milestone has been reached.",
+        "The end-to-end backend chain can be demonstrated locally through an automated smoke test of 18 assertions.",
+        "The repository explicitly describes the project as MVP-oriented and not production-ready."
+      ],
+      "links": [
+        "GitHub repository"
+      ],
+      "media": {
+        "description": "Overview of the Kushim application."
+      }
+    },
+    "scora": {
+      "summary": "A personal \"second brain\" built on locally run AI, centred on long-term memory and knowledge management.",
+      "context": "Scora explores private, local uses of AI: keeping a long-term memory, organising a personal knowledge base and querying it through retrieval-augmented generation, without handing that data to a third-party service.",
+      "role": "Personal project: design and development.",
+      "concepts": [
+        "Personal second brain",
+        "Long-term memory",
+        "Retrieval-augmented generation",
+        "Knowledge management",
+        "Local, private AI processing"
+      ],
+      "outcomes": [],
+      "links": [],
+      "media": {
+        "description": "Illustration of the Scora project."
+      }
+    },
+    "biogazen": {
+      "summary": "An internal web tool for the staff of a biogas plant, organising zones, procedures and step-by-step operating content.",
+      "context": "The tool gathers the operating content of a biogas plant: a breakdown by zone, procedures and content describing operations step by step, a search to find information again, and an access-controlled administration area to keep it up to date.",
+      "role": "Design and development of the tool.",
+      "concepts": [
+        "Internal web tool",
+        "Organisation by zone",
+        "Step-by-step procedures",
+        "Search within the content",
+        "Access-controlled administration"
+      ],
+      "outcomes": [],
+      "links": [],
+      "media": {
+        "description": "Illustration of the Biogazen tool."
+      }
+    },
+    "eszter-gyori": {
+      "summary": "A showcase site with an integrated booking journey, built around PHP and MySQL for hosting at Hetzner.",
+      "context": "The project aims at a showcase site with a booking journey backed by a calendar, together with notification requirements. The chosen technical direction is PHP and MySQL, hosted at Hetzner.",
+      "role": "Personal project: design and development.",
+      "concepts": [
+        "Showcase site",
+        "Booking journey",
+        "Availability calendar",
+        "Notifications"
+      ],
+      "outcomes": [],
+      "links": [
+        "GitHub repository"
+      ],
+      "media": {
+        "description": "Illustration of the Eszter showcase site."
+      }
+    },
+    "math-l-home": {
+      "summary": "A future showcase site for Mathilde. The project is planned but has not been created yet.",
+      "context": "The project is recorded as planned: no scope, no technology, no deadline and no content have been settled to date. This entry will stay minimal for as long as nothing verifiable fills it out.",
+      "role": "Personal project: design and development to come.",
+      "concepts": [
+        "Showcase site"
+      ],
+      "outcomes": [],
+      "links": [],
+      "media": {
+        "description": "Illustration of the future Math L'home showcase site."
+      }
+    }
+  },
+  "skills": {
+    "php": { "summary": "The language of the Clinique LPFS professional workshop project and of the Facet portfolio." },
+    "java": { "summary": "A language worked with during my studies, notably on the Android Tic-tac-toe and Calculator projects." },
+    "python": { "summary": "A language covered as part of object-oriented programming during my studies." },
+    "javascript": { "summary": "Used in the previous version of the portfolio and in the Clinique LPFS project." },
+    "typescript": { "summary": "Used in the EszterGyori, Kushim and Facet projects." },
+    "rust": { "summary": "The main language of Kushim's backend services." },
+    "html": { "summary": "The markup language of the previous version of the portfolio." },
+    "symfony": { "summary": "A PHP framework covered during my studies." },
+    "tailwind-css": { "summary": "Used in the previous version of the portfolio and in Facet." },
+    "next-js": { "summary": "The framework of the EszterGyori front end and of Kushim's showcase site." },
+    "react": { "summary": "Used in Kushim's authenticated application and in the EszterGyori front end." },
+    "axum": { "summary": "The Rust HTTP framework of Kushim's services." },
+    "mysql": { "summary": "A database management system covered during my studies." },
+    "postgresql": { "summary": "The database of Kushim's services." },
+    "redis": { "summary": "Used in Kushim's infrastructure." },
+    "composer": { "summary": "The PHP dependency manager used by Facet." },
+    "docker": { "summary": "Used for the local environment of Kushim and EszterGyori." },
+    "git": { "summary": "Version control across every project." },
+    "github": { "summary": "Repository hosting and continuous integration." },
+    "node-js": { "summary": "Runs the build tooling and the EszterGyori content API." },
+    "npm": { "summary": "The package manager of the front-end build chains." },
+    "webpack": { "summary": "Asset compilation for the previous version of the portfolio." },
+    "vite": { "summary": "Facet's asset build chain." },
+    "phpunit": { "summary": "Facet's automated tests." },
+    "phpstan": { "summary": "Facet's static analysis, configured at level 8." },
+    "sqldbm": { "summary": "A database modelling tool used during my studies." },
+    "pix": { "summary": "Pix certification obtained during the 2021-2022 school year." },
+    "atelier-rgpd-cnil": { "summary": "Certificate of completion for the GDPR workshop offered by the CNIL." }
+  },
+  "experiences": {
+    "bachelor-cda-foreach-academy": {
+      "summary": "A programme in web and application development, at a school specialised in development professions with a strong emphasis on practice and modern web technologies.",
+      "highlights": [
+        "A curriculum centred on building concrete projects and on working as a team.",
+        "Deeper work on application architecture, coding good practice and modern workflows: Git, continuous integration, deployment."
+      ]
+    },
+    "bts-sio-slam": {
+      "summary": "Information Services for Organisations, SLAM option (software solutions and business applications): designing and implementing software solutions that answer the needs of organisations.",
+      "highlights": [
+        "Command of the stages of an IT project's life cycle, from needs analysis to evolutionary maintenance.",
+        "Clinique LPFS professional workshop project, carried out as a team."
+      ]
+    },
+    "dcg-edouard-gand": {
+      "summary": "Training in accounting and management: accounting principles, financial management, business law and economics.",
+      "highlights": [
+        "Analysis of financial statements and preparation of budgets.",
+        "Pix certification obtained during the 2021-2022 school year."
+      ]
+    },
+    "baccalaureat-stmg-gestion-finance": {
+      "summary": "Initial training in business management and finance: financial management, accounting, business law and economics.",
+      "highlights": [
+        "Foundations in business management, finance and accounting."
+      ]
+    }
+  }
+}

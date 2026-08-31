@@ -159,7 +159,7 @@ final class AdminInboxTest extends TestCase
             $notFound->body()
         );
 
-        foreach (['/', '/projects', '/about', '/contact'] as $path) {
+        foreach (['/fr', '/fr/projects', '/fr/about', '/fr/contact'] as $path) {
             self::assertStringNotContainsString(
                 'name="robots"',
                 $this->app()->handle(Request::create('GET', $path))->body(),

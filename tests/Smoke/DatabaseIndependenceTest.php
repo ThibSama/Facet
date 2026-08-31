@@ -19,7 +19,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class DatabaseIndependenceTest extends TestCase
 {
-    private const PUBLIC_PAGES = ['/', '/projects', '/about', '/contact'];
+    private const PUBLIC_PAGES = ['/fr', '/fr/projects', '/fr/about', '/fr/contact'];
 
     private static function root(): string
     {

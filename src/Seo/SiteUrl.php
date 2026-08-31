@@ -17,9 +17,25 @@ final class SiteUrl
 {
     private string $base;
 
-    private function __construct(string $base)
+    private bool $secure;
+
+    private function __construct(string $base, bool $secure)
     {
         $this->base = $base;
+        $this->secure = $secure;
+    }
+
+    /**
+     * Whether the deployment's own canonical origin is HTTPS.
+     *
+     * Read from configuration rather than from the request, for the same reason
+     * the base URL is: whether this site is served securely is a property of
+     * the deployment, and a `Secure` cookie attribute decided by a header a
+     * client can set is not a decision at all.
+     */
+    public function isSecure(): bool
+    {
+        return $this->secure;
     }
 
     public static function fromConfig(Config $config): ?self
@@ -53,7 +69,7 @@ final class SiteUrl
             return null;
         }
 
-        return new self($scheme . '://' . $host . $port . $path);
+        return new self($scheme . '://' . $host . $port . $path, $scheme === 'https');
     }
 
     public function absolute(string $path): string

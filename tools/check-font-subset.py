@@ -51,6 +51,24 @@ TYPOGRAPHIC_PUNCTUATION = {
     0x203A, 0x203C, 0x203D, 0x203E, 0x2044, 0x20AC,
 }
 
+# Characters the site prints but the subset deliberately does not carry.
+#
+# Both belong to Satoshi Run's own iconography — the bitcoin sign it asks you to
+# collect and the arrow it tells you to press — and both have always been drawn
+# by the system fallback stack rather than by Facet Sans: the subset is built for
+# the site's *text*, and two pictograms inside a deferred overlay are not worth
+# the bytes on every page load that never opens it.
+#
+# They became visible to this gate in PORT-137, when the run's hint line moved
+# from a TypeScript constant into the translation catalog so that it could be
+# said in French. Nothing about what a visitor sees changed; what changed is that
+# the exception is now stated here instead of being an accident of which files
+# this script happens to read.
+FALLBACK_SYMBOLS = {
+    0x20BF,  # ₿  BITCOIN SIGN
+    0x25BC,  # ▼  BLACK DOWN-POINTING TRIANGLE
+}
+
 
 def source_characters() -> set[int]:
     """Collect the versioned canonical corpus and every rendered UI source."""
@@ -64,9 +82,11 @@ def source_characters() -> set[int]:
             for item in value.values():
                 yield from json_strings(item)
 
+    # Both the canonical corpus and its translations: the English site renders
+    # the same pages, so the glyphs its prose needs are part of the contract.
     canonical = "".join(
         text
-        for path in sorted((ROOT / "content").glob("*.json"))
+        for path in sorted((ROOT / "content").rglob("*.json"))
         for text in json_strings(json.loads(path.read_text(encoding="utf-8")))
     )
     ui_paths = sorted((ROOT / "resources" / "skins" / "evolving-interface" / "views").rglob("*.php"))
@@ -84,7 +104,7 @@ def expected_characters() -> set[int]:
     for start, end in LANGUAGE_RANGES:
         expected.update(range(start, end + 1))
     expected.update(source_characters())
-    return expected
+    return expected - FALLBACK_SYMBOLS
 
 
 def names(font: TTFont, name_id: int) -> set[str]:

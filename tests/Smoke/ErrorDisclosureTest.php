@@ -50,7 +50,7 @@ final class ErrorDisclosureTest extends TestCase
     private static function explode(string $environment, bool $debug, string $skinId): Response
     {
         return self::app($environment, $debug, ExplodingSkin::registry($skinId))
-            ->handle(Request::create('GET', '/'));
+            ->handle(Request::create('GET', '/fr'));
     }
 
     public function testAnInjectedFailureIsA500(): void
@@ -77,7 +77,7 @@ final class ErrorDisclosureTest extends TestCase
         self::assertStringNotContainsString(self::root(), $body, 'No filesystem path may reach the page');
         self::assertStringNotContainsString('.php', $body);
         self::assertStringNotContainsString('Diagnostics', $body);
-        self::assertStringContainsString('Something went wrong', $body);
+        self::assertStringContainsString("Quelque chose s&apos;est mal passé", $body);
     }
 
     /**
@@ -129,7 +129,7 @@ final class ErrorDisclosureTest extends TestCase
 
         self::assertSame(500, $response->status());
         self::assertStringContainsString('<!doctype html>', $response->body());
-        self::assertStringContainsString('Something went wrong', $response->body());
+        self::assertStringContainsString("Quelque chose s&apos;est mal passé", $response->body());
         self::assertStringNotContainsString('The error template is broken too', $response->body());
         self::assertStringNotContainsString(ExplodingSkin::FAKE_SECRET, $response->body());
     }
@@ -139,7 +139,11 @@ final class ErrorDisclosureTest extends TestCase
         $body = self::explode('production', false, ExplodingSkin::EXPLODING_ERROR)->body();
 
         self::assertStringNotContainsString('<script', $body);
-        self::assertStringContainsString('<a href="/"', $body);
+        // The fallback's way out is the localized home of the language the
+        // failure was reported in, not the unprefixed entry route: a page that
+        // has already resolved a language should not send the reader through a
+        // redirect to resolve it again.
+        self::assertStringContainsString('<a href="/fr"', $body);
     }
 
     public function testNotFoundAndMethodNotAllowedAlsoRenderValidHtml(): void
@@ -147,7 +151,7 @@ final class ErrorDisclosureTest extends TestCase
         $app = self::app('production', false);
 
         $notFound = $app->handle(Request::create('GET', '/nope'));
-        $notAllowed = $app->handle(Request::create('POST', '/'));
+        $notAllowed = $app->handle(Request::create('POST', '/fr'));
 
         foreach ([$notFound, $notAllowed] as $response) {
             self::assertStringContainsString('<!doctype html>', $response->body());

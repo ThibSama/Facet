@@ -43,6 +43,16 @@ export default defineConfig({
 
   use: {
     baseURL,
+    /*
+     * The browsers speak `en-US` unless a test says otherwise.
+     *
+     * Since PORT-137 an unprefixed URL negotiates its language from
+     * `Accept-Language`, so "what does GET / answer" depends on what the
+     * browser asks for. Pinning it here makes that deterministic on every
+     * machine; the negotiation itself is exercised on purpose, in both
+     * directions, by `locale.spec.ts`.
+     */
+    locale: 'en-US',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'off',

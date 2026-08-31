@@ -60,7 +60,7 @@ final class AboutPageTest extends TestCase
      */
     private static function page(): DOMXPath
     {
-        return Dom::of(Dom::withoutScripts(self::html('/about')));
+        return Dom::of(Dom::withoutScripts(self::html('/fr/about')));
     }
 
     private static function main(DOMXPath $xpath): DOMElement
@@ -80,7 +80,7 @@ final class AboutPageTest extends TestCase
     private static function homeSkillsText(): string
     {
         return Dom::textOf(Dom::element(
-            Dom::of(Dom::withoutScripts(self::html('/'))),
+            Dom::of(Dom::withoutScripts(self::html('/fr'))),
             '//main//section[@aria-labelledby="skills"]'
         ));
     }
@@ -271,7 +271,7 @@ final class AboutPageTest extends TestCase
     {
         $xpath = self::page();
 
-        foreach (['/projects', '/contact'] as $target) {
+        foreach (['/fr/projects', '/fr/contact'] as $target) {
             self::assertGreaterThan(
                 0,
                 Dom::query($xpath, sprintf('//main//a[@href="%s"]', $target))->length,
@@ -399,6 +399,26 @@ final class AboutPageTest extends TestCase
             $remainder = str_replace($fragment, '', $remainder);
         }
 
-        return trim(str_replace(['—', '·', '-', 'present', ',', '.'], '', $remainder)) === '';
+        // "aujourd'hui" is the skin's word for an open-ended period, in the
+        // language of the page — chrome, exactly as the dashes and separators
+        // around it are, and not a fact the corpus states.
+        return trim(str_replace(
+            ['—', '·', '-', self::label('content.period.present'), ',', '.'],
+            '',
+            $remainder
+        )) === '';
     }
+
+    /**
+     * A display name the shell writes for a canonical machine value.
+     *
+     * `in-progress`, `education` and `language` are stored vocabularies, not
+     * words: since PORT-137 the shell prints the translated label for each in
+     * the language of the page, so this is what a rendered page actually says.
+     */
+    private static function label(string $key): string
+    {
+        return (new \Facet\I18n\Translator(\Facet\I18n\Locale::Fr))->text($key);
+    }
+
 }

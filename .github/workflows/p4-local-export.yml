@@ -1,0 +1,41 @@
+name: p4-local-export
+
+on:
+  push:
+    branches: [work/p4-local-export]
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pinned Facet snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: 6051f94affb309102e843be8996661d7729f6d5e
+          fetch-depth: 0
+      - name: Verify pinned snapshot
+        run: |
+          test "$(git rev-parse HEAD)" = "6051f94affb309102e843be8996661d7729f6d5e"
+          git diff --quiet
+      - name: Create verified Git bundle
+        run: |
+          git bundle create p4-facet.bundle HEAD
+          git bundle verify p4-facet.bundle
+          sha256sum p4-facet.bundle > p4-facet.bundle.sha256
+          cat > p4-facet.metadata.yaml <<'EOF'
+          schema_version: 1
+          repository: ThibSama/Facet
+          revision: 6051f94affb309102e843be8996661d7729f6d5e
+          EOF
+      - name: Upload pinned bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: p4-facet
+          path: |
+            p4-facet.bundle
+            p4-facet.bundle.sha256
+            p4-facet.metadata.yaml
+          retention-days: 90
